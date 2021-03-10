@@ -1,0 +1,7 @@
+[flake8]
+filename = *.py, *.pyx, *.pxd
+max-line-length = 99
+max-doc-length = 72
+per-file-ignores =
+    *.pyx: E225,E227,E402,E999
+    *.pxd: E225,E227,E402,E999
