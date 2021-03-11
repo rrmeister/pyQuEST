@@ -1,0 +1,2 @@
+class QuESTError(Exception):
+    pass
