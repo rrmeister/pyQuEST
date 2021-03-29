@@ -140,13 +140,32 @@ cdef class CompactU(SingleQubitOperator):
                 self._alpha, self._beta)
 
 
-cdef class X(SingleQubitOperator):
+cdef class PauliOperator(SingleQubitOperator):
+
+    def __mul__(a, b):
+        """Manage multiplication with other PauliOperator instances.
+
+        Returns a PauliProduct if the both operators are PauliOperators,
+        but NotImplemented for any other type. Multiplications of
+        PauliProduct with X, Y, and Z are handled by PauliProduct.
+        """
+        if isinstance(a, PauliOperator) and isinstance(b, PauliOperator):
+            return PauliProduct([a, b])
+        else:
+            return NotImplemented
+
+    @property
+    def inverse(self):
+        return self
+
+
+cdef class X(PauliOperator):
 
     def __cinit__(self, target, controls=None):
-        self.TYPE = OP_TYPES.OP_PAULI_X
         if self._num_controls > 1:
             raise NotImplementedError(
-                "Multi-controlled Pauli operator not yet supported.")
+                "Multi-controlled Pauli-X operator not yet supported.")
+        self.TYPE = OP_TYPES.OP_PAULI_X
 
     cdef int apply_to(self, Qureg c_register) except -1:
         if self._num_controls == 0:
@@ -155,18 +174,14 @@ cdef class X(SingleQubitOperator):
             quest.controlledNot(
                 c_register, self._controls[0], self._target)
 
-    @property
-    def inverse(self):
-        return self
 
-
-cdef class Y(SingleQubitOperator):
+cdef class Y(PauliOperator):
 
     def __cinit__(self, target, controls=None):
         self.TYPE = OP_TYPES.OP_PAULI_Y
         if self._num_controls > 1:
             raise NotImplementedError(
-                "Multi-controlled Pauli operator not yet supported.")
+                "Multi-controlled Pauli-Y operator not yet supported.")
 
     cdef int apply_to(self, Qureg c_register) except -1:
         if self._num_controls == 0:
@@ -175,12 +190,8 @@ cdef class Y(SingleQubitOperator):
             quest.controlledPauliY(
                 c_register, self._controls[0], self._target)
 
-    @property
-    def inverse(self):
-        return self
 
-
-cdef class Z(SingleQubitOperator):
+cdef class Z(PauliOperator):
     # This class might make more sense as a MultiQubitOperator, since
     # there is not really a distinction between controls and targets.
 
@@ -208,32 +219,28 @@ cdef class Z(SingleQubitOperator):
                 c_register, controls, self._num_controls + 1)
             free(controls)
 
-    @property
-    def inverse(self):
-        return self
-
 
 cdef class PauliProduct(GlobalOperator):
 
     PAULI_REPR = {0: '', 1: 'X', 2: 'Y', 3: 'Z'}
 
     def __cinit__(self, pauli_terms):
-        cdef SingleQubitOperator term
+        cdef PauliOperator factor
         if isinstance(pauli_terms, BaseOperator):
             pauli_terms = [pauli_terms]
-        if any([term._num_controls for term in pauli_terms]):
+        if any([factor._num_controls for factor in pauli_terms]):
             raise ValueError("No controlled operators are allowed in PauliProduct.")
-        self._num_qubits = max([term._target for term in pauli_terms] + [0]) + 1  # 0-based index
+        self._num_qubits = max([factor._target for factor in pauli_terms] + [0]) + 1  # 0-based idx
         self._pauli_types = <pauliOpType*>calloc(self._num_qubits, sizeof(self._pauli_types[0]))
-        for term in pauli_terms:
-            if self._pauli_types[term._target] != 0:
+        for factor in pauli_terms:
+            if self._pauli_types[factor._target] != 0:
                 raise ValueError("Each qubit can only have one Pauli operator.")
-            if isinstance(term, X):
-                self._pauli_types[term._target] = pauliOpType.PAULI_X
-            elif isinstance(term, Y):
-                self._pauli_types[term._target] = pauliOpType.PAULI_Y
-            elif isinstance(term, Z):
-                self._pauli_types[term._target] = pauliOpType.PAULI_Z
+            if isinstance(factor, X):
+                self._pauli_types[factor._target] = pauliOpType.PAULI_X
+            elif isinstance(factor, Y):
+                self._pauli_types[factor._target] = pauliOpType.PAULI_Y
+            elif isinstance(factor, Z):
+                self._pauli_types[factor._target] = pauliOpType.PAULI_Z
             else:
                 raise ValueError("Only X, Y, and Z operators "
                                  "are valid in pauli_terms")
@@ -259,6 +266,10 @@ cdef class PauliProduct(GlobalOperator):
     @property
     def controls(self):
         return []
+
+    @property
+    def inverse(self):
+        return self
 
 
 cdef class Swap(MultiQubitOperator):

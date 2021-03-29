@@ -17,15 +17,19 @@ cdef class CompactU(SingleQubitOperator):
     cdef Complex _beta
 
 
-cdef class X(SingleQubitOperator):
+cdef class PauliOperator(SingleQubitOperator):
     pass
 
 
-cdef class Y(SingleQubitOperator):
+cdef class X(PauliOperator):
     pass
 
 
-cdef class Z(SingleQubitOperator):
+cdef class Y(PauliOperator):
+    pass
+
+
+cdef class Z(PauliOperator):
     pass
 
 
