@@ -213,6 +213,54 @@ cdef class Z(SingleQubitOperator):
         return self
 
 
+cdef class PauliProduct(GlobalOperator):
+
+    PAULI_REPR = {0: '', 1: 'X', 2: 'Y', 3: 'Z'}
+
+    def __cinit__(self, pauli_terms):
+        cdef SingleQubitOperator term
+        if isinstance(pauli_terms, BaseOperator):
+            pauli_terms = [pauli_terms]
+        if any([term._num_controls for term in pauli_terms]):
+            raise ValueError("No controlled operators are allowed in PauliProduct.")
+        self._num_qubits = max([term._target for term in pauli_terms] + [0]) + 1  # 0-based index
+        self._pauli_types = <pauliOpType*>calloc(self._num_qubits, sizeof(self._pauli_types[0]))
+        for term in pauli_terms:
+            if self._pauli_types[term._target] != 0:
+                raise ValueError("Each qubit can only have one Pauli operator.")
+            if isinstance(term, X):
+                self._pauli_types[term._target] = pauliOpType.PAULI_X
+            elif isinstance(term, Y):
+                self._pauli_types[term._target] = pauliOpType.PAULI_Y
+            elif isinstance(term, Z):
+                self._pauli_types[term._target] = pauliOpType.PAULI_Z
+            else:
+                raise ValueError("Only X, Y, and Z operators "
+                                 "are valid in pauli_terms")
+
+    def __dealloc__(self):
+        free(self._pauli_types)
+
+    def __repr__(self):
+        cdef size_t k
+        cdef pauli_str = ""
+        for k in range(self._num_qubits):
+            if self._pauli_types[k] > 0:
+                pauli_str += (self.PAULI_REPR[self._pauli_types[k]]
+                              + "(" + str(k) + "), ")
+        pauli_str = pauli_str[:-2]  # cut off last comma
+        return type(self).__name__ + "([" + pauli_str + "])"
+
+    @property
+    def targets(self):
+        return [k for k in range(self._num_qubits)
+                if self._pauli_codes[k] > 0]
+
+    @property
+    def controls(self):
+        return []
+
+
 cdef class Swap(MultiQubitOperator):
 
     def __cinit__(self, targets=None, target=None):

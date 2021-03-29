@@ -62,7 +62,10 @@ cdef extern from "QuEST.h":
     ctypedef struct Vector:
         qreal x, y, z
     ctypedef enum pauliOpType:
-        pass
+        PAULI_I = 0,
+        PAULI_X = 1,
+        PAULI_Y = 2,
+        PAULI_Z = 3
 
     # QuESTEnv methods
     QuESTEnv createQuESTEnv() except +
