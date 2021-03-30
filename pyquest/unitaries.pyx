@@ -40,7 +40,7 @@ Classes:
         Single-qubit gate rotating the qubit about an arbitrary axis.
 """
 
-
+import numpy as np
 from pyquest.quest_error import QuESTError
 
 
@@ -150,7 +150,10 @@ cdef class PauliOperator(SingleQubitOperator):
         PauliProduct with X, Y, and Z are handled by PauliProduct.
         """
         if isinstance(a, PauliOperator) and isinstance(b, PauliOperator):
-            return PauliProduct([a, b])
+            if (<PauliOperator>a)._target != (<PauliOperator>b)._target:
+                return PauliProduct([a, b])
+            else:
+                return PauliProduct([a]) * b
         else:
             return NotImplemented
 
@@ -224,15 +227,28 @@ cdef class PauliProduct(GlobalOperator):
 
     PAULI_REPR = {0: '', 1: 'X', 2: 'Y', 3: 'Z'}
 
-    def __cinit__(self, pauli_terms):
+    MULTIPLICATION_TABLE = np.array([[0, 1, 2, 3],
+                                     [1, 0, 3, 2],
+                                     [2, 3, 0, 1],
+                                     [3, 2, 1, 0]], dtype=np.intc)
+
+    MULTIPLICATION_FACTORS = np.array([[0, 0, 0, 0],
+                                       [0, 0, 1, 3],
+                                       [0, 3, 0, 1],
+                                       [0, 1, 3, 0]], dtype=np.intc)
+
+    def __cinit__(self, pauli_factors=None):
+        if pauli_factors is None:
+            self._num_qubits = 0
+            return
         cdef PauliOperator factor
-        if isinstance(pauli_terms, BaseOperator):
-            pauli_terms = [pauli_terms]
-        if any([factor._num_controls for factor in pauli_terms]):
+        if isinstance(pauli_factors, BaseOperator):
+            pauli_factors = [pauli_factors]
+        if any([factor._num_controls for factor in pauli_factors]):
             raise ValueError("No controlled operators are allowed in PauliProduct.")
-        self._num_qubits = max([factor._target for factor in pauli_terms] + [0]) + 1  # 0-based idx
+        self._num_qubits = max([factor._target for factor in pauli_factors] + [0]) + 1  # 0-based
         self._pauli_types = <pauliOpType*>calloc(self._num_qubits, sizeof(self._pauli_types[0]))
-        for factor in pauli_terms:
+        for factor in pauli_factors:
             if self._pauli_types[factor._target] != 0:
                 raise ValueError("Each qubit can only have one Pauli operator.")
             if isinstance(factor, X):
@@ -243,7 +259,7 @@ cdef class PauliProduct(GlobalOperator):
                 self._pauli_types[factor._target] = pauliOpType.PAULI_Z
             else:
                 raise ValueError("Only X, Y, and Z operators "
-                                 "are valid in pauli_terms")
+                                 "are valid in pauli_factors")
 
     def __dealloc__(self):
         free(self._pauli_types)
@@ -258,10 +274,54 @@ cdef class PauliProduct(GlobalOperator):
         pauli_str = pauli_str[:-2]  # cut off last comma
         return type(self).__name__ + "([" + pauli_str + "])"
 
+    def __mul__(a, b):
+        cdef PauliProduct res
+        if isinstance(a, PauliOperator):
+            a = PauliProduct([a])
+        if not isinstance(a, PauliProduct):
+            return NotImplemented
+
+        if isinstance(b, PauliOperator):
+            b = PauliProduct([b])
+        if not isinstance(b, PauliProduct):
+            return NotImplemented
+
+        res = PauliProduct()  # Does not allocate any memory.
+        res._num_qubits = max((<PauliProduct>a)._num_qubits,
+                              (<PauliProduct>b)._num_qubits)
+        res._pauli_types = <pauliOpType*>calloc(
+            res._num_qubits, sizeof(res._pauli_types[0]))
+        cdef qcomp coefficient = 1
+        PauliProduct._multiply_pauli_strings(
+            (<PauliProduct>a)._pauli_types, (<PauliProduct>a)._num_qubits,
+            (<PauliProduct>b)._pauli_types, (<PauliProduct>b)._num_qubits,
+            res._pauli_types, &coefficient)
+
+        if coefficient == 1:
+            return res
+        else:
+            # Return a PauliSum once implemeted
+            raise NotImplementedError(
+                "PauliProducts cannot have repeated indices yet.")
+
+    cdef int apply_to(self, Qureg c_register) except -1:
+        cdef size_t k
+        if c_register.numQubitsRepresented < self._num_qubits:
+            raise ValueError(
+                f"Register does not have enough qubits for this operator. "
+                f"Required {self._num_qubits}, only got {c_register.numQubitsRepresented}")
+        for k in range(self._num_qubits):
+            if self._pauli_types[k] == pauliOpType.PAULI_X:
+                quest.pauliX(c_register, k)
+            elif self._pauli_types[k] == pauliOpType.PAULI_Y:
+                quest.pauliY(c_register, k)
+            elif self._pauli_types[k] == pauliOpType.PAULI_Z:
+                quest.pauliZ(c_register, k)
+
     @property
     def targets(self):
         return [k for k in range(self._num_qubits)
-                if self._pauli_codes[k] > 0]
+                if self._pauli_types[k] > 0]
 
     @property
     def controls(self):
@@ -270,6 +330,32 @@ cdef class PauliProduct(GlobalOperator):
     @property
     def inverse(self):
         return self
+
+    @staticmethod
+    cdef int _multiply_pauli_strings(
+            pauliOpType* a_types, size_t a_num_qubits,
+            pauliOpType* b_types, size_t b_num_qubits,
+            pauliOpType* res_types, qcomp* coefficient) except -1:
+        cdef size_t multiply_qubits = min(a_num_qubits, b_num_qubits)
+        cdef size_t res_num_qubits = max(a_num_qubits, b_num_qubits)
+        # We need to know which array is larger to copy the trivial
+        # operators to the result.
+        cdef pauliOpType* overhang_types
+        if a_num_qubits > b_num_qubits:
+            overhang_types = a_types
+        else:
+            overhang_types = b_types
+        cdef size_t k
+        cdef int[:, :] mult_table = PauliProduct.MULTIPLICATION_TABLE
+        cdef int[:, :] mult_factors = PauliProduct.MULTIPLICATION_FACTORS
+        cdef int overall_factor = 0
+        for k in range(multiply_qubits):
+            res_types[k] = <pauliOpType>mult_table[<int>a_types[k], <int>b_types[k]]
+            overall_factor += mult_factors[<int>a_types[k], <int>b_types[k]]
+        for k in range(multiply_qubits, res_num_qubits):
+            res_types[k] = overhang_types[k]
+        overall_factor %= 4
+        coefficient[0] *= 1j ** overall_factor
 
 
 cdef class Swap(MultiQubitOperator):
