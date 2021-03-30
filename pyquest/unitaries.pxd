@@ -88,8 +88,8 @@ cdef class RotateAroundAxis(BaseRotate):
     cdef Vector _axis
 
 
-cdef class MultiRotatePauli(BaseRotate):
-    pass
-
-cdef class ParamSwap(BaseRotate):
-    cdef ComplexMatrix4 _u
+cdef class R(GlobalOperator):
+    cdef qreal _angle
+    cdef size_t _num_qubits
+    cdef int* _qubits
+    cdef pauliOpType* _pauli_types

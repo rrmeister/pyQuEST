@@ -557,12 +557,49 @@ cdef class RotateAroundAxis(BaseRotate):
                 self._angle, self._axis)
 
 
-cdef class MultiRotatePauli(BaseRotate):
+cdef class R(GlobalOperator):
 
-    def __cinit__(self, target, angle, paulis):
+    PAULI_REPR = {0: '', 1: 'X', 2: 'Y', 3: 'Z'}
+
+    def __cinit__(self, pauli_operators, angle):
         self.TYPE = OP_TYPES.OP_MULTI_ROTATE
-        raise NotImplementedError("Pauli multi-rotation not yet implemented.")
+        self._angle = angle
+        if isinstance(pauli_operators, PauliOperator):
+            pauli_operators = PauliProduct(pauli_operators)
+        if not isinstance(pauli_operators, PauliProduct):
+            raise TypeError("Only Pauli operators and PauliProducts are "
+                            "allowd as pauli_operators.")
+        self._num_qubits = (<PauliProduct>pauli_operators)._num_qubits
+        self._pauli_types = <pauliOpType*>malloc(
+            self._num_qubits * sizeof(self._pauli_types[0]))
+        self._qubits = <int*>malloc(self._num_qubits * sizeof(self._qubits[0]))
+        cdef size_t k
+        for k in range(self._num_qubits):
+            self._qubits[k] = k
+            self._pauli_types[k] = (<PauliProduct>pauli_operators)._pauli_types[k]
 
+    def __dealloc__(self):
+        free(self._pauli_types)
+        free(self._qubits)
+
+    def __repr__(self):
+        cdef size_t k
+        cdef pauli_str = ""
+        for k in range(self._num_qubits):
+            if self._pauli_types[k] > 0:
+                pauli_str += (self.PAULI_REPR[self._pauli_types[k]]
+                              + "(" + str(k) + ") * ")
+        pauli_str = pauli_str[:-3]  # cut off last asterisk
+        return type(self).__name__ + "(" + pauli_str + ", " + str(self._angle) + ")"
+
+    cdef int apply_to(self, Qureg c_register) except -1:
+        if c_register.numQubitsRepresented < self._num_qubits:
+            raise ValueError(
+                f"Register does not have enough qubits for this operator. "
+                f"Required {self._num_qubits}, only got {c_register.numQubitsRepresented}")
+        quest.multiRotatePauli(
+            c_register, self._qubits, self._pauli_types,
+            self._num_qubits, self._angle)
 
 Unitary = U
 CompactUnitary = CompactU
@@ -577,3 +614,5 @@ RotateX = Rx
 RotateY = Ry
 RotateZ = Rz
 PhaseShift = Phase
+MultiRotatePauli = R
+Rotate = R
