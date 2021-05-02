@@ -1,4 +1,18 @@
+import sys
 from skbuild import setup
+
+# scikit-build disables docstrings for "Release" and "MinSizeRel"
+# builds. To prevent this in a hacky way, set the default build type to
+# a new (made up) value "RelWithDocs".
+
+# Check if there is a user-specified build type in the arguments;
+# if not, set it to the new default "RelWithDocs".
+for arg in sys.argv:
+    # '--' marks the end of the skbuild arguments
+    if arg == '--' or arg.startswith('--build-type'):
+        break
+else:
+    sys.argv.insert(0, '--build-type=RelWithDocs')
 
 setup(
     name="pyquest",

@@ -1,7 +1,10 @@
 # Need to hand off the QuEST precision to the Cython compiler as well.
 set(CYTHON_FLAGS "-E QuEST_PREC=${PRECISION}" CACHE INTERNAL
-    "Quest precision passed to the pyQuEST compilation")
-set(CYTHON_ANNOTATE True CACHE INTERNAL
+    "QuEST precision passed to the pyQuEST compilation")
+# Embed function signatures in docstrings to make working in IDEs easier.
+set(CYTHON_FLAGS "${CYTHON_FLAGS} -X binding=True -X embedsignature=True"
+    CACHE INTERNAL "Embed function signatures in docstrings")
+set(CYTHON_ANNOTATE True CACHE BOOL
     "Create annotated HTML for Cython code to inspect Python interactions")
 
 # scikit-build modules needed for compilation.
