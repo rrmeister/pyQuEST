@@ -2,7 +2,8 @@ from libcpp.deque cimport deque
 from libcpp cimport bool as bool_t
 from libc.stdlib cimport malloc, free
 from libc.stdint cimport uintptr_t
-from cpython.ref cimport PyObject
+from cpython.ref cimport PyObject, Py_XDECREF
+from cpython.pycapsule cimport PyCapsule_New, PyCapsule_GetPointer
 cimport pyquest.quest_interface as quest
 from pyquest.quest_interface cimport qreal, qcomp, Complex
 from pyquest.quest_interface cimport OP_TYPES
@@ -13,6 +14,7 @@ cimport numpy as np
 
 cdef class QuESTEnvironment:
     cdef quest.QuESTEnv c_env
+    cdef object _env_capsule
     cdef bool_t _cuda
     cdef bool_t _openmp
     cdef bool_t _mpi

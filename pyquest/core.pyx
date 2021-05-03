@@ -61,6 +61,7 @@ cdef class QuESTEnvironment:
         """Create internals and extract environment properties."""
         self.c_env = quest.createQuESTEnv()
         logger.info("Created QuEST Environment at " + hex(<uintptr_t>&self.c_env))
+        self._env_capsule = PyCapsule_New(<void*>&self.c_env, NULL, NULL)
         self._logged_registers = WeakSet()
         cdef char[200] env_str
         quest.getEnvironmentString(self.c_env, env_str)
@@ -74,6 +75,7 @@ cdef class QuESTEnvironment:
 
     def __dealloc__(self):
         self._close()
+        Py_XDECREF(<PyObject*>self._env_capsule)
 
     def __repr__(self):
         """Get a string containing all environment info at once."""
@@ -82,6 +84,10 @@ cdef class QuESTEnvironment:
                 f"num_threads={self._num_threads}, "
                 f"num_ranks={self._num_ranks}, "
                 f"precision={sizeof(qreal) // 4})")
+
+    @property
+    def env_capsule(self):
+        return self._env_capsule
 
     @property
     def logged_registers(self):
@@ -126,11 +132,6 @@ cdef class QuESTEnvironment:
         to be single (1), double (2), or quad (4) precision.
         """
         return sizeof(qreal) // 4
-
-    # FIXME: needed for apply_to() in PauliSum to avoid circular imports
-    @property
-    def _quest_env(self):
-        return <object>(&self.c_env)
 
     def close_env(self):
         """Close the QuEST environment.
