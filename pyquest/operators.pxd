@@ -1,6 +1,8 @@
 from libc.stdlib cimport malloc, calloc, free
+from cpython.pycapsule cimport PyCapsule_GetPointer
 cimport pyquest.quest_interface as quest
-from pyquest.quest_interface cimport qreal, OP_TYPES, Qureg, pauliOpType, QuESTEnv
+from pyquest.quest_interface cimport qreal, qcomp, OP_TYPES, Qureg, pauliOpType
+from pyquest.quest_interface cimport QuESTEnv, Complex
 from pyquest.quest_interface cimport ComplexMatrix2, ComplexMatrix4, ComplexMatrixN
 from pyquest.quest_interface cimport createComplexMatrixN, destroyComplexMatrixN
 cimport numpy as np
@@ -8,6 +10,7 @@ cimport numpy as np
 
 cdef class BaseOperator:
     cdef int TYPE
+    cpdef as_matrix(self, num_qubits=*)
     cdef int apply_to(self, Qureg c_register) except -1
 
 

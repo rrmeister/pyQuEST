@@ -59,7 +59,40 @@ cdef class BaseOperator:
     def inverse(self):
         """Calculate and return the inverse of an operator."""
         raise NotImplementedError(
-            "inverse() not implemented for this operator.")
+            "inverse not implemented for this operator.")
+
+    @property
+    def targets(self):
+        """Return a list of qubits this operator acts on."""
+        raise NotImplementedError(
+            "targets not implemented for this operator.")
+
+    cpdef as_matrix(self, num_qubits=None):
+        """Return the operator in matrix representation."""
+        if num_qubits is None:
+            try:
+                num_qubits = max(self.targets) + 1  # 0-based index
+            except NotImplementedError:
+                raise ValueError(
+                    "Number of qubits must be given for this operator.")
+        cdef QuESTEnv *env_ptr = <QuESTEnv*>PyCapsule_GetPointer(
+            pyquest.env.env_capsule, NULL)
+        cdef Qureg tmp_reg = quest.createQureg(
+            num_qubits, env_ptr[0])
+        cdef long long k, m
+        cdef long long mat_dim = 1LL << num_qubits
+        cdef Complex amp
+        cdef qcomp[:, :] res_mat = np.ndarray(
+            (mat_dim, mat_dim), dtype=pyquest.core.np_qcomp)
+        for k in range(mat_dim):
+            quest.initClassicalState(tmp_reg, k)
+            self.apply_to(tmp_reg)
+            for m in range(mat_dim):
+                amp = quest.getAmp(tmp_reg, m)
+                res_mat[m, k].real = amp.real
+                res_mat[m, k].imag = amp.imag
+        quest.destroyQureg(tmp_reg, env_ptr[0])
+        return res_mat.base
 
     cdef int apply_to(self, Qureg c_register) except -1:
         """Apply the operator to a ``quest_interface.Qureg``."""
