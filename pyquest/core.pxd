@@ -6,14 +6,14 @@ from cpython.ref cimport PyObject, Py_XDECREF
 from cpython.pycapsule cimport PyCapsule_New, PyCapsule_GetPointer
 cimport pyquest.quest_interface as quest
 from pyquest.quest_interface cimport qreal, qcomp, Complex
-from pyquest.quest_interface cimport OP_TYPES
+from pyquest.quest_interface cimport OP_TYPES, Qureg, QuESTEnv
 from pyquest.operators cimport BaseOperator, GlobalOperator
 from pyquest.gates cimport M
 cimport numpy as np
 
 
 cdef class QuESTEnvironment:
-    cdef quest.QuESTEnv c_env
+    cdef QuESTEnv c_env
     cdef object _env_capsule
     cdef bool_t _cuda
     cdef bool_t _openmp
@@ -27,7 +27,7 @@ cdef class QuESTEnvironment:
 
 cdef class Register:
     cdef object __weakref__  # Makes Register weak-refable in Cython
-    cdef quest.Qureg c_register
+    cdef Qureg c_register
     cpdef init_blank_state(self)
     cpdef apply_circuit(self, Circuit circ)
     cpdef apply_operator(self, BaseOperator op)

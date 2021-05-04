@@ -669,3 +669,9 @@ cdef class Circuit(GlobalOperator):
         self.c_operations.clear()
         for op in self.py_operations:
             self.c_operations.push_back(<PyObject*>op)
+
+    # TODO This does not yet return measurement results.
+    cdef int apply_to(self, Qureg c_register) except -1:
+        cdef size_t k
+        for k in range(self.c_operations.size()):
+            (<BaseOperator>self.c_operations[k]).apply_to(c_register)
