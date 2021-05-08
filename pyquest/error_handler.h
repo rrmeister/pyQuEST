@@ -6,9 +6,11 @@
 
 #ifndef QUEST_ERR_HAND
 #define QUEST_ERR_HAND
-#include <string>
+#include <new>
+#include <typeinfo>
 #include <stdexcept>
 #include <ios>
+#include <string>
 #include "Python.h"
 #define __Pyx_CppExn2PyErr quest_exception_handler
 
