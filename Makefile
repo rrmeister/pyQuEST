@@ -14,4 +14,4 @@ install:
 	$(PY) setup.py install
 
 clean:
-	rm -r _skbuild
+	rm -rf _skbuild
