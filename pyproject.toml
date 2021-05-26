@@ -1,6 +1,6 @@
 [build-system]
-requires = ['setuptools', 'wheel', 'scikit-build', 'cmake', 'cython', 'numpy']
+requires = ['setuptools', 'wheel', 'scikit-build', 'cmake', 'cython', 'numpy>=1.20']
 build-backend = 'setuptools.build_meta'  # Should be switched to skbuild-backend as soon as available.
 
 [project]
-dependencies = ['numpy']  # This is not yet used by any tool, but we comply with PEP 631 anyway.
+dependencies = ['numpy>=1.20']  # This is not yet used by any tool, but we comply with PEP 631 anyway.

@@ -37,5 +37,5 @@ setup(
         "Topic :: Scientific/Engineering :: Physics",
     ],
     cmake_args=["-DPRECISION:STRING=2"],
-    install_requires=["numpy"],
+    install_requires=["numpy>=1.20"],
 )
