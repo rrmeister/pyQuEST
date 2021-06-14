@@ -63,6 +63,22 @@ cdef extern from "QuEST.h":
         qreal x, y, z
     ctypedef enum pauliOpType:
         pass
+    ctypedef enum bitEncoding:
+        UNSIGNED
+        TWOS_COMPLEMENT
+    ctypedef enum phaseFunc:
+        NORM
+        SCALED_NORM
+        INVERSE_NORM
+        SCALED_INVERSE_NORM
+        PRODUCT
+        SCALED_PRODUCT
+        INVERSE_PRODUCT
+        SCALED_INVERSE_PRODUCT
+        DISTANCE
+        SCALED_DISTANCE
+        INVERSE_DISTANCE
+        SCALED_INVERSE_DISTANCE
 
     # QuESTEnv methods
     QuESTEnv createQuESTEnv() except +
@@ -102,6 +118,38 @@ cdef extern from "QuEST.h":
     qreal calcExpecPauliSum(
         Qureg qureg, pauliOpType* allPauliCodes, qreal* termCoeffs,
         int numSumTerms, Qureg workspace) except +
+    void applyPhaseFunc(
+        Qureg qureg, int* qubits, int numQubits, bitEncoding encoding,
+        qreal* coeffs, qreal* exponents, int numTerms) except +
+    void applyPhaseFuncOverrides(
+        Qureg qureg, int* qubits, int numQubits, bitEncoding encoding,
+        qreal* coeffs, qreal* exponents, int numTerms, long long int* overrideInds,
+        qreal* overridePhases, int numOverrides) except +
+    void applyMultiVarPhaseFunc(
+        Qureg qureg, int* qubits, int* numQubitsPerReg, int numRegs,
+        bitEncoding encoding, qreal* coeffs, qreal* exponents,
+        int* numTermsPerReg) except +
+    void applyMultiVarPhaseFuncOverrides(
+        Qureg qureg, int* qubits, int* numQubitsPerReg, int numRegs,
+        bitEncoding encoding, qreal* coeffs, qreal* exponents,
+        int* numTermsPerReg, long long int* overrideInds,
+        qreal* overridePhases, int numOverrides) except +
+    void applyNamedPhaseFunc(
+        Qureg qureg, int* qubits, int* numQubitsPerReg, int numRegs,
+        bitEncoding encoding, phaseFunc functionNameCode) except +
+    void applyNamedPhaseFuncOverrides(
+        Qureg qureg, int* qubits, int* numQubitsPerReg, int numRegs,
+        bitEncoding encoding, phaseFunc functionNameCode,
+        long long int* overrideInds, qreal* overridePhases, int numOverrides) except +
+    void applyParamNamedPhaseFunc(
+        Qureg qureg, int* qubits, int* numQubitsPerReg, int numRegs,
+        bitEncoding encoding, phaseFunc functionNameCode,
+        qreal* params, int numParams) except +
+    void applyParamNamedPhaseFuncOverrides(
+        Qureg qureg, int* qubits, int* numQubitsPerReg, int numRegs,
+        bitEncoding encoding, phaseFunc functionNameCode,
+        qreal* params, int numParams, long long int* overrideInds,
+        qreal* overridePhases, int numOverrides) except +
     void applyPauliSum(Qureg inQureg, pauliOpType* allPauliCodes,
                        qreal* termCoeffs, int numSumTerms, Qureg outQureg) except +
     void applyTrotterCircuit(Qureg qureg, PauliHamil hamil, qreal time,
