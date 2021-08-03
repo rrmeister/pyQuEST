@@ -511,9 +511,9 @@ cdef class PhaseFunc(GlobalOperator):
                 interpreted as a binary number, serve as the input to
                 a single-variable phase function. The first qubit in the
                 iterable is the least significant bit in its binary
-                interpretation. A state with qubit 0 in state 0 and
-                qubit 2 in state 1 is interpreted as a decimal 4 if
-                targets=(0, 1, 2), but as a decimal 1 if
+                interpretation. A state with qubit 0 and qubit 1 in
+                state 0, and qubit 2 in state 1 is interpreted as a
+                decimal 4 if targets=(0, 1, 2), but as a decimal 1 if
                 targets=(2, 1, 0) (when using unsigned binary
                 representation). The qubit indices do not need to be
                 in strictly increasing or decreasing order.
