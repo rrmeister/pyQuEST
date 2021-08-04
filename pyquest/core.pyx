@@ -317,10 +317,13 @@ cdef class Register:
                 element, or an ``np.ndarray`` with dimensions matching
                 the elements selected with ``index``.
         """
+        # FIXME Needs a refactor into several special-case functions and
+        #       a generic handler.
         cdef size_t start, stop, k, m, num_index
         cdef int step
         cdef qreal val_imag, val_real
         cdef bool_t from_scalar
+        cdef const qcomp[:] value_arr
         try:
             value[0]
             from_scalar = False
@@ -336,19 +339,29 @@ cdef class Register:
             num_index = len(range(start, stop, step))
             k = start
             if not from_scalar:
-                for m in range(num_index):
-                    val_real = value[m].real
-                    val_imag = value[m].imag
-                    # Because QuEST needs separate arrays for real and
-                    # imaginary parts, we cannot hand off a pointer to a
-                    # single numpy memoryview. Thus we call setAmps for
-                    # each element separately.
-                    quest.setAmps(self.c_register, k, &val_real, &val_imag, 1)
-                    k += step
+                # Try using a memoryview first for performance, pull
+                # values through the CPython API only if necessary.
+                try:
+                    value_arr = value
+                    for m in range(num_index):
+                        val_real = value_arr[m].real
+                        val_imag = value_arr[m].imag
+                        quest.setAmps(self.c_register, k, &val_real, &val_imag, 1)
+                        k += step
+                except (TypeError, ValueError):
+                    for m in range(num_index):
+                        val_real = value[m].real
+                        val_imag = value[m].imag
+                        # Because QuEST needs separate arrays for real
+                        # and imaginary parts, we cannot hand off a
+                        # pointer to a single numpy memoryview. Thus we
+                        # call setAmps for each element separately.
+                        quest.setAmps(self.c_register, k, &val_real, &val_imag, 1)
+                        k += step
             else:
+                val_real = value.real
+                val_imag = value.imag
                 for m in range(num_index):
-                    val_real = value.real
-                    val_imag = value.imag
                     quest.setAmps(self.c_register, k, &val_real, &val_imag, 1)
                     k += step
         else:
@@ -360,9 +373,9 @@ cdef class Register:
                         val_imag = value[m].imag
                         quest.setAmps(self.c_register, index[m], &val_real, &val_imag, 1)
                 else:
+                    val_real = value.real
+                    val_imag = value.imag
                     for m in range(num_index):
-                        val_real = value.real
-                        val_imag = value.imag
                         quest.setAmps(self.c_register, index[m], &val_real, &val_imag, 1)
             except TypeError:  # Last guess is we got a scalar index.
                 val_real = value.real
