@@ -471,6 +471,7 @@ class _PhaseFuncType(enum.IntEnum):
     SCALED_NORM = quest.phaseFunc.SCALED_NORM
     INVERSE_NORM = quest.phaseFunc.INVERSE_NORM
     SCALED_INVERSE_NORM = quest.phaseFunc.SCALED_INVERSE_NORM
+    SCALED_INVERSE_SHIFTED_NORM = quest.phaseFunc.SCALED_INVERSE_SHIFTED_NORM
     PRODUCT = quest.phaseFunc.PRODUCT
     SCALED_PRODUCT = quest.phaseFunc.SCALED_PRODUCT
     INVERSE_PRODUCT = quest.phaseFunc.INVERSE_PRODUCT
@@ -479,6 +480,7 @@ class _PhaseFuncType(enum.IntEnum):
     SCALED_DISTANCE = quest.phaseFunc.SCALED_DISTANCE
     INVERSE_DISTANCE = quest.phaseFunc.INVERSE_DISTANCE
     SCALED_INVERSE_DISTANCE = quest.phaseFunc.SCALED_INVERSE_DISTANCE
+    SCALED_INVERSE_SHIFTED_DISTANCE = quest.phaseFunc.SCALED_INVERSE_SHIFTED_DISTANCE
     EXPONENTIAL_POLYNOMIAL = enum.auto()
 
 
@@ -496,7 +498,8 @@ cdef class PhaseFunc(GlobalOperator):
     BitEncoding = _BitEncoding
     FuncType = _PhaseFuncType
 
-    # Maximum number of parameters for any named function.
+    # Maximum number of parameters for any named function, excluding
+    # sub-register shifts.
     _MAX_NUM_PARAMETERS = 2
 
     def __cinit__(
@@ -587,6 +590,14 @@ cdef class PhaseFunc(GlobalOperator):
                 zero with the specified value `divergence_override`,
                 effectively multiplying their coefficients with
                 exp(1j * divergence_override). Defaults to 0.
+            shifts (iterable[float]): Function types containing
+                `SHIFTED` require this argument to contain the amounts
+                by which the sub-registers (or pairs thereof) will be
+                shifted. For `SCALED_INVERSE_SHIFTED_NORM` there must be
+                as many elements in this argument as there are
+                sub-registers, `SCALED_INVERSE_SHIFTED_DISTANCE`
+                requires exactly half as many shifts as there are
+                sub-registers.
         """
         cdef int k, m, n
         cdef int num_qubits_in_regs, qubit_counter
@@ -695,6 +706,10 @@ cdef class PhaseFunc(GlobalOperator):
             raise TypeError("Scaled function needs 'scaling' "
                             "keyword argument.")
 
+        if 'SHIFTED' in func_type.name and 'shifts' not in kwargs:
+            raise TypeError("Shifted function needs 'shifts' keyword "
+                            "argument")
+
         if 'divergence_override' in kwargs and 'INVERSE' not in func_type.name:
             raise TypeError(
                 "'divergence_override' only available for predefined "
@@ -707,7 +722,8 @@ cdef class PhaseFunc(GlobalOperator):
         # Just allocate as much memory as we can possibly need,
         # this is still negligible memory waste.
         self._parameters = <qreal*>malloc(
-            PhaseFunc._MAX_NUM_PARAMETERS * sizeof(self._parameters[0]))
+            (PhaseFunc._MAX_NUM_PARAMETERS + self._num_regs)
+            * sizeof(self._parameters[0]))
         self._num_parameters = 0
 
         if 'SCALED' in func_type.name:
@@ -717,6 +733,11 @@ cdef class PhaseFunc(GlobalOperator):
         if 'INVERSE' in func_type.name:
             self._parameters[self._num_parameters] = kwargs['divergence_override']
             self._num_parameters += 1
+
+        if 'SHIFTED' in func_type.name:
+            for shift in kwargs['shifts']:
+                self._parameters[self._num_parameters] = shift
+                self._num_parameters += 1
 
     def __dealloc__(self):
         free(self._override_inds)
@@ -738,9 +759,11 @@ cdef class PhaseFunc(GlobalOperator):
         if self._num_terms_per_reg:
             res += f", terms={self.terms}"
         if "SCALED" in PhaseFunc.FuncType(self._phase_func_type).name:
-            res += f", scaling={self._parameters[0]}"
+            res += f", scaling={self.scaling}"
         if "INVERSE" in PhaseFunc.FuncType(self._phase_func_type).name:
-            res += f", divergence_override={self._parameters[self._num_parameters - 1]}"
+            res += f", divergence_override={self.divergence_override}"
+        if "SHIFTED" in PhaseFunc.FuncType(self._phase_func_type).name:
+            res += f", shifts={list(self.shifts)}"
         return res + ")"
 
     @property
@@ -778,15 +801,36 @@ cdef class PhaseFunc(GlobalOperator):
 
     @property
     def scaling(self):
-        if 'SCALING' not in PhaseFunc.FuncType(self._phase_func_type):
+        if 'SCALED' not in PhaseFunc.FuncType(self._phase_func_type).name:
             return None
         return self._parameters[0]
 
     @property
     def divergence_override(self):
-        if 'INVERSE' not in PhaseFunc.FuncType(self._phase_func_type):
+        if 'INVERSE' not in PhaseFunc.FuncType(self._phase_func_type).name:
             return None
-        return self._parameters[self._num_parameters - 1]
+        div_ind = 0
+        if 'SCALED' in PhaseFunc.FuncType(self._phase_func_type).name:
+            div_ind += 1
+        return self._parameters[div_ind]
+
+    @property
+    def shifts(self):
+        if 'SHIFTED' not in PhaseFunc.FuncType(self._phase_func_type).name:
+            return None
+        cdef int start_ind = 0
+        cdef int k
+        # The shifts are all parameters after possible scaling and
+        # divergence override parameters.
+        if 'SCALED' in PhaseFunc.FuncType(self._phase_func_type).name:
+            start_ind += 1
+        if 'INVERSE' in PhaseFunc.FuncType(self._phase_func_type).name:
+            start_ind += 1
+        cdef qreal[:] shift_arr = np.ndarray(self._num_parameters - start_ind,
+                                             dtype=pyquest.core.np_qreal)
+        for k in range(self._num_parameters - start_ind):
+            shift_arr[k] = self._parameters[k + start_ind]
+        return shift_arr.base
 
     cdef int apply_to(self, Qureg c_register) except -1:
         pass
