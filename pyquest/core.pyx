@@ -404,6 +404,46 @@ cdef class Register:
     @cython.boundscheck(False)
     @cython.wraparound(False)
     def prob_of_all_outcomes(self, qubits):
+        """Calculate probabilities of all measurement outcomes.
+
+        For all possible states of the sub-register given by ``qubits``,
+        the probability of measuring each of the states is calculated
+        and returned in an array.
+
+        Arguments:
+            qubits (int | array_like[int]): An object, that numpy can
+                convert into an array. That array will be flattened, and
+                its elements are the indices of qubits to consider for
+                the measurement outcomes. For the purpose of indexing
+                the output array, the entries of ``qubits`` are
+                considered to be in _increasing_ order of significance.
+                The qubits need not be contiguous or in any specific
+                order.
+
+        Returns:
+            np.ndarray[qreal]: Probabilities of measuring each output.
+                The elements in the returned array are ordered such that
+                the qubits in ``qubits`` are ordered from low to high
+                significance. The following table illustrates this by
+                mapping the index in the returned array k to the
+                measurement output corresponding to that index.
+
+                k     |   qubits[2]    qubits[1]    qubits[0]
+                0     |           0            0            0
+                1     |           0            0            1
+                2     |           0            1            0
+                3     |           0            1            1
+                4     |           1            0            0
+                ...
+
+                Index 2 of the returned array, for example, contains the
+                probability of measuring only ``qubits[1]`` in state 1,
+                and all other qubits in state 0. The element at index 3
+                gives the probability of measuring both ``qubit[0]`` and
+                ``qubit[1]`` in state 1, and all others in state 0.
+
+                The returned array has a size of ``2**len(qubits)``.
+        """
         cdef int[:] arr_qubits = np.array(qubits, dtype=np.intc,
                                           order='C', copy=False).ravel()
         cdef int num_qubits = arr_qubits.size
