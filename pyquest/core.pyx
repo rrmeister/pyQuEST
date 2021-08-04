@@ -401,6 +401,18 @@ cdef class Register:
         """
         return quest.getNumAmps(self.c_register)
 
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    def prob_of_all_outcomes(self, qubits):
+        cdef int[:] arr_qubits = np.array(qubits, dtype=np.intc,
+                                          order='C', copy=False).ravel()
+        cdef int num_qubits = arr_qubits.size
+        cdef qreal[:] outcome_probs = np.ndarray(1 << num_qubits,
+                                                 dtype=np_qreal)
+        quest.calcProbOfAllOutcomes(&outcome_probs[0], self.c_register,
+                                    &arr_qubits[0], num_qubits)
+        return outcome_probs.base
+
     @property
     def purity(self):
         """Return the purity of the stored quantum state."""

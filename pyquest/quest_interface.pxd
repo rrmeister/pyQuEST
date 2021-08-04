@@ -207,6 +207,8 @@ cdef extern from "QuEST.h":
     void setAmps(Qureg qureg, long long int startInd,
                  qreal* reals, qreal* imags, long long int numAmps) except +
     qreal calcProbOfOutcome(Qureg qureg, int measureQubit, int outcome) except +
+    void calcProbOfAllOutcomes(qreal* outcomeProbs, Qureg qureg,
+                               int* qubits, int numQubits) except +
 
 
 cdef enum OP_TYPES:
