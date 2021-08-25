@@ -15,7 +15,7 @@ cdef class CompactU(SingleQubitOperator):
     cdef Complex _beta
 
 
-cdef class X(SingleQubitOperator):
+cdef class X(MultiQubitOperator):
     pass
 
 

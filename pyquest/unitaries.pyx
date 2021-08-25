@@ -140,20 +140,25 @@ cdef class CompactU(SingleQubitOperator):
                 self._alpha, self._beta)
 
 
-cdef class X(SingleQubitOperator):
+cdef class X(MultiQubitOperator):
 
-    def __cinit__(self, target, controls=None):
+    def __cinit__(self, targets, controls=None):
         self.TYPE = OP_TYPES.OP_PAULI_X
-        if self._num_controls > 1:
-            raise NotImplementedError(
-                "Multi-controlled Pauli operator not yet supported.")
 
     cdef int apply_to(self, Qureg c_register) except -1:
         if self._num_controls == 0:
-            quest.pauliX(c_register, self._target)
-        else:
+            if self._num_targets == 1:
+                quest.pauliX(c_register, self._targets[0])
+            else:
+                quest.multiQubitNot(c_register, self._targets,
+                                    self._num_targets)
+        elif self._num_controls == 1 and self._num_targets == 1:
             quest.controlledNot(
-                c_register, self._controls[0], self._target)
+                c_register, self._controls[0], self._targets[0])
+        else:
+            quest.multiControlledMultiQubitNot(
+                c_register, self._controls, self._num_controls,
+                self._targets, self._num_targets)
 
     @property
     def inverse(self):

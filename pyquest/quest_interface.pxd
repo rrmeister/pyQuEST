@@ -166,6 +166,9 @@ cdef extern from "QuEST.h":
     # Unitaries
     void pauliX(Qureg qureg, int targetQubit) except +
     void controlledNot(Qureg qureg, int controlQubit, int targetQubit) except +
+    void multiQubitNot(Qureg qureg, int* targs, int numTargs) except +
+    void multiControlledMultiQubitNot(Qureg qureg, int* ctrls, int numCtrls,
+                                      int* targs, int numTargs) except +
     void pauliY(Qureg qureg, int targetQubit) except +
     void controlledPauliY(
         Qureg qureg, int controlQubit, int targetQubit) except +
