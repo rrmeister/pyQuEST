@@ -1,4 +1,3 @@
 [submodule "QuEST"]
 	path = QuEST
 	url = https://github.com/QuEST-Kit/QuEST
-	branch = apply_phase_funcs
