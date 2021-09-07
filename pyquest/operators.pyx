@@ -356,17 +356,17 @@ cdef class MatrixOperator(MultiQubitOperator):
     cdef _numpy_array_to_matrix_attribute(self, np.ndarray arr):
         # For typed memoryviews we need to call different methods
         # depending on the dtype of the array.
-        if arr.dtype is np.single:
+        if arr.dtype == np.single:
             self._copy_single_array(arr)
-        elif arr.dtype is np.double:
+        elif arr.dtype == np.double:
             self._copy_double_array(arr)
-        elif arr.dtype is np.longdouble:
+        elif arr.dtype == np.longdouble:
             self._copy_longdouble_array(arr)
-        elif arr.dtype is np.csingle:
+        elif arr.dtype == np.csingle:
             self._copy_csingle_array(arr)
-        elif arr.dtype is np.cdouble:
+        elif arr.dtype == np.cdouble:
             self._copy_cdouble_array(arr)
-        elif arr.dtype is np.clongdouble:
+        elif arr.dtype == np.clongdouble:
             self._copy_clongdouble_array(arr)
         else:
             # For unsupported types we use the (slow) generic copy
