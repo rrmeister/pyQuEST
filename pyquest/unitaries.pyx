@@ -49,8 +49,27 @@ cdef class U(MatrixOperator):
     def __cinit__(self, targets=None, matrix=None, controls=None, target=None):
         self.TYPE = OP_TYPES.OP_UNITARY
 
+    def __init__(self, targets=None, matrix=None, controls=None, target=None):
+        super().__init__(targets, matrix, controls, target)
+
+    def __dealloc__(self):
+        # Because _create_array_property has been overridden,
+        # deallocation must also be performed separately.
+        if (self._matrix != NULL and self._num_targets > 2):
+            destroyComplexMatrixN((<ComplexMatrixN*>self._matrix)[0])
+        else:
+            free(self._real)
+            free(self._imag)
+            # The parent destructor might also call free on
+            # self._matrix, self._real, and self._imag. Setting them to
+            # NULL avoids freeing the same pointer twice.
+            self._real = NULL
+            self._imag = NULL
+        free(self._matrix)
+        self._matrix = NULL
+
     cdef _create_array_property(self):
-        # We need to overwrite this method, because core QuEST
+        # We need to override this method, because core QuEST
         # supports ComplexMatrix* with controls for unitaries, but
         # not for generic matrices.
         cdef size_t matrix_dim = 2 ** self._num_targets
@@ -107,7 +126,7 @@ cdef class U(MatrixOperator):
                 quest.multiControlledUnitary(
                     c_register, self._controls, self._num_controls,
                     self._targets[0], (<ComplexMatrix2*>self._matrix)[0])
-            if self._num_targets == 2:
+            elif self._num_targets == 2:
                 quest.multiControlledTwoQubitUnitary(
                     c_register, self._controls, self._num_controls,
                     self._targets[0], self._targets[1],

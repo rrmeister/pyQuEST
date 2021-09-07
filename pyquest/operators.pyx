@@ -272,11 +272,16 @@ cdef class MatrixOperator(MultiQubitOperator):
             if matrix.shape[0] != matrix_dim or matrix.shape[1] != matrix_dim:
                 raise ValueError("Matrix dimension must be "
                                  "2 ** num_qubits x 2 ** num_qubits.")
-            self._create_array_property()
-            self._numpy_array_to_matrix_attribute(matrix)
         else:
             raise NotImplementedError("Only numpy.ndarray matrices are "
                                       "currently supported.")
+
+    def __init__(self, targets=None, matrix=None, controls=None, target=None):
+        # Even though these are C-level initialisers, call them in
+        # __init__() rather than __cinit__() so they can be overridden
+        # by subclasses.
+        self._create_array_property()
+        self._numpy_array_to_matrix_attribute(matrix)
 
     def __dealloc__(self):
         # For 1 or 2 qubits the matrix elements are directly in the
