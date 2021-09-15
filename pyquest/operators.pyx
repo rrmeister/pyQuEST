@@ -384,8 +384,8 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t k, m
         for k in range(arr.shape[0]):
             for m in range(arr.shape[1]):
-                self._real[k][m] = arr.real[k, m]
-                self._imag[k][m] = arr.imag[k, m]
+                self._real[k][m] = arr[k, m].real
+                self._imag[k][m] = arr[k, m].imag
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -393,7 +393,7 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t k, m
         for k in range(arr.shape[0]):
             for m in range(arr.shape[1]):
-                self._real[k][m] = arr.real[k, m]
+                self._real[k][m] = arr[k, m]
                 self._imag[k][m] = 0.
 
     @cython.boundscheck(False)
@@ -402,7 +402,7 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t k, m
         for k in range(arr.shape[0]):
             for m in range(arr.shape[1]):
-                self._real[k][m] = arr.real[k, m]
+                self._real[k][m] = arr[k, m]
                 self._imag[k][m] = 0.
 
     @cython.boundscheck(False)
@@ -411,7 +411,7 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t k, m
         for k in range(arr.shape[0]):
             for m in range(arr.shape[1]):
-                self._real[k][m] = arr.real[k, m]
+                self._real[k][m] = arr[k, m]
                 self._imag[k][m] = 0.
 
     @cython.boundscheck(False)
