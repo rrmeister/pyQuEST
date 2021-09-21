@@ -7,3 +7,4 @@ from pyquest.operators cimport MultiQubitOperator
 cdef class M(MultiQubitOperator):
     cdef int *_results
     cdef qreal *_probabilities
+    cdef int *_force
