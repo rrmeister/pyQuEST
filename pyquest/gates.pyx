@@ -12,8 +12,41 @@ Classes:
 """
 
 cdef class M(MultiQubitOperator):
+    """Class implementing measurements.
+
+    When applied to a register, an object of this class performs a
+    measurement of one or more qubits in the z-basis. Qubits are
+    measured in the order they are given in the `targets` argument.
+
+    The results of the last time the gate was applied to a register are
+    available in the `results` property, the corresponding probabilities
+    are in the `probabilities` property.
+
+    For faster calculations (e.g. when post-selecting on a measurement
+    outcome), the (unphysical) additional option of forcing the outcome
+    of the measurement by providing it in the `force` arument.
+    """
 
     def __cinit__(self, targets=None, target=None, force=None):
+        """Create a new measurement object.
+
+        Args:
+            targets(int | iterable[int]): Indices of the qubits to
+                measure, in the order they are supposed to be measured.
+                Can be a scalar for a single target, or an iterable
+                for multiple targets. Remember that measurements are
+                destructive and the outcome of an earlier measurement
+                can influence the probabilities of later measurements.
+            target(int | iterable[int]): Alternative for `targets`;
+                only one of `target` or `targets` may be not `None`.
+            force(int | iterable[int]): Force the outcome of all or
+                some measurements. Can be a scalar or an iterable of
+                length 1, if a single qubit is measured. Must be `None`
+                or an iterable of the same length as `targets`, if
+                multiple qubits are measured. Each entry must be either
+                `None` (meaning do not force the outcome of that
+                specific measurement), `0`, or `1`. Defaults to `None`.
+        """
         cdef int k
         self.TYPE = OP_TYPES.OP_MEASURE
         self._force = NULL
