@@ -7,7 +7,7 @@ from pyquest.operators cimport SingleQubitOperator, MultiQubitOperator, MatrixOp
 
 
 cdef class U(MatrixOperator):
-    pass
+    cdef int *_control_pattern
 
 
 cdef class CompactU(SingleQubitOperator):

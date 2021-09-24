@@ -46,10 +46,37 @@ from pyquest.quest_error import QuESTError
 
 cdef class U(MatrixOperator):
 
-    def __cinit__(self, targets=None, matrix=None, controls=None, target=None):
+    def __cinit__(self, targets=None, matrix=None, controls=None, target=None,
+                  control_pattern=None):
+        cdef int k
         self.TYPE = OP_TYPES.OP_UNITARY
+        self._control_pattern = NULL
+        if control_pattern is not None:
+            if self._num_targets > 1:
+                raise ValueError(
+                    "Control patterns are only available for "
+                    "single-qubit targets.")
+            self._control_pattern = <int*>malloc(
+                self._num_controls * sizeof(self._control_pattern[0]))
+            if self._num_controls == 1:
+                try:
+                    self._control_pattern[0] = control_pattern
+                except TypeError:
+                    if len(control_pattern) != self._num_controls:
+                        raise ValueError(
+                            "Length of control pattern must match the number "
+                            "of controls.")
+                    self._control_pattern[0] = control_pattern[0]
+            else:
+                if len(control_pattern) != self._num_controls:
+                    raise ValueError(
+                        "Length of control pattern must match the number "
+                        "of controls.")
+                for k in range(self._num_controls):
+                    self._control_pattern[k] = control_pattern[k]
 
-    def __init__(self, targets=None, matrix=None, controls=None, target=None):
+    def __init__(self, targets=None, matrix=None, controls=None, target=None,
+                 control_pattern=None):
         super().__init__(targets, matrix, controls, target)
 
     def __dealloc__(self):
@@ -67,6 +94,22 @@ cdef class U(MatrixOperator):
             self._imag = NULL
         free(self._matrix)
         self._matrix = NULL
+        free(self._control_pattern)
+
+    def __repr__(self):
+        if self._control_pattern == NULL:
+            return super().__repr__()
+        return (super().__repr__()[:-1]
+                + ', control_pattern='
+                + str(self.control_pattern)
+                + ')')
+
+    @property
+    def control_pattern(self):
+        cdef int k
+        if self._control_pattern == NULL:
+            return None
+        return [self._control_pattern[k] for k in range(self._num_controls)]
 
     cdef _create_array_property(self):
         # We need to override this method, because core QuEST
@@ -110,9 +153,15 @@ cdef class U(MatrixOperator):
                     (<ComplexMatrixN*>self._matrix)[0])
         elif self._num_controls == 1:
             if self._num_targets == 1:
-                quest.controlledUnitary(
-                    c_register, self._controls[0], self._targets[0],
-                    (<ComplexMatrix2*>self._matrix)[0])
+                if self._control_pattern == NULL:
+                    quest.controlledUnitary(
+                        c_register, self._controls[0], self._targets[0],
+                        (<ComplexMatrix2*>self._matrix)[0])
+                else:
+                    quest.multiStateControlledUnitary(
+                        c_register, self._controls, self._control_pattern,
+                        self._num_controls, self._targets[0],
+                        (<ComplexMatrix2*>self._matrix)[0])
             elif self._num_targets == 2:
                 quest.controlledTwoQubitUnitary(
                     c_register, self._controls[0], self._targets[0],
@@ -123,9 +172,15 @@ cdef class U(MatrixOperator):
                     self._num_targets, (<ComplexMatrixN*>self._matrix)[0])
         else:
             if self._num_targets == 1:
-                quest.multiControlledUnitary(
-                    c_register, self._controls, self._num_controls,
-                    self._targets[0], (<ComplexMatrix2*>self._matrix)[0])
+                if self._control_pattern == NULL:
+                    quest.multiControlledUnitary(
+                        c_register, self._controls, self._num_controls,
+                        self._targets[0], (<ComplexMatrix2*>self._matrix)[0])
+                else:
+                    quest.multiStateControlledUnitary(
+                        c_register, self._controls, self._control_pattern,
+                        self._num_controls, self._targets[0],
+                        (<ComplexMatrix2*>self._matrix)[0])
             elif self._num_targets == 2:
                 quest.multiControlledTwoQubitUnitary(
                     c_register, self._controls, self._num_controls,

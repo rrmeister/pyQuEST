@@ -261,7 +261,8 @@ cdef class MultiQubitOperator(ControlledOperator):
 
 cdef class MatrixOperator(MultiQubitOperator):
 
-    def __cinit__(self, targets=None, matrix=None, controls=None, target=None):
+    def __cinit__(self, targets=None, matrix=None, controls=None, target=None,
+                  **kwargs):
         self.TYPE = OP_TYPES.OP_MATRIX
         if matrix is None:
             raise TypeError("Matrix representation must be given.")
@@ -276,7 +277,8 @@ cdef class MatrixOperator(MultiQubitOperator):
             raise NotImplementedError("Only numpy.ndarray matrices are "
                                       "currently supported.")
 
-    def __init__(self, targets=None, matrix=None, controls=None, target=None):
+    def __init__(self, targets=None, matrix=None, controls=None, target=None,
+                 **kwargs):
         # Even though these are C-level initialisers, call them in
         # __init__() rather than __cinit__() so they can be overridden
         # by subclasses.
