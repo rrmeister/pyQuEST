@@ -25,8 +25,18 @@ The package can then be installed using pip.
 $ pip3 install .
 ```
 
+> For this last step — depending on your system — you might have to separately install the Python development headers, usually called `python3-dev` or `python3-devel`. Check your distribution for details if the installer cannot find `Python.h`.
+
 ## Usage
-After successful installation, we can test pyQuEST by importing it and having a look at the environment it is running in.
+After successful installation, we must first exit the `pyQuEST` directory, and can then start a Python interpreter, with e.g. `ipython` or `python3`.
+
+```console
+$ cd ..
+$ ipython
+```
+> If the interpreter is launched in the `pyQuEST` directory, the `pyquest` source folder takes precedence over the installed package with the same name, and the import fails.
+
+Here we can test pyQuEST by importing it and having a look at the environment it is running in.
 
 ```python
 In [1]: import pyquest
