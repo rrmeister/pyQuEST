@@ -27,6 +27,8 @@ execute_process(COMMAND ${GIT_EXECUTABLE} apply ${QuEST_PATCH}
 
 # Build the QuEST static library.
 add_subdirectory(${QuEST_DIR})
+# Static linking the modules needs position independent code on some compilers.
+set_property(TARGET QuEST PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Revert patch to keep QuEST directory in its original state.
 execute_process(COMMAND ${GIT_EXECUTABLE} apply -R ${QuEST_PATCH}
