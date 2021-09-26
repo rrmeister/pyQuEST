@@ -20,6 +20,7 @@ mpi = env.mpi
 num_threads = env.num_threads
 num_ranks = env.num_ranks
 precision = env.precision
+rank = env.rank
 """Promote environment properties to the package level.
 
 These attributes are only for convenience, so individual properties of

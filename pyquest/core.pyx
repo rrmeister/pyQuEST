@@ -82,6 +82,7 @@ cdef class QuESTEnvironment:
         return (f"{type(self).__name__}(cuda={self._cuda}, "
                 f"openmp={self._openmp}, mpi={self._mpi}, "
                 f"num_threads={self._num_threads}, "
+                f"rank={self.c_env.rank}, "
                 f"num_ranks={self._num_ranks}, "
                 f"precision={sizeof(qreal) // 4})")
 
@@ -132,6 +133,17 @@ cdef class QuESTEnvironment:
         to be single (1), double (2), or quad (4) precision.
         """
         return sizeof(qreal) // 4
+
+    @property
+    def rank(self):
+        """Get the rank of the host process in an MPI environment.
+
+        The rank can be used to identify a specific process within an
+        MPI execution environment and execute code in only one of these
+        processes. This is useful for printing messages and accessing
+        the file system.
+        """
+        return self.c_env.rank
 
     def close_env(self):
         """Close the QuEST environment.

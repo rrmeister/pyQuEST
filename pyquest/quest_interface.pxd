@@ -34,7 +34,8 @@ cdef extern from "error_handler.h":
 cdef extern from "QuEST.h":
     # Data structures
     ctypedef struct QuESTEnv:
-        pass
+        int rank
+        int num_ranks
     ctypedef struct Complex:
         qreal real
         qreal imag
