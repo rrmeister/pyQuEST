@@ -36,7 +36,9 @@ foreach(cy_target ${CY_TARGETS})
 
     # Disable "deprecated" warnings until Cython is updated to not use
     # tp_print anymore.
-    target_compile_options(${cy_target} PRIVATE -Wno-deprecated-declarations)
+    if (NOT MSVC)  # MSVC does not know this flag.
+        target_compile_options(${cy_target} PRIVATE -Wno-deprecated-declarations)
+    endif()
 endforeach(cy_target)
 
 install(TARGETS ${CY_TARGETS} LIBRARY DESTINATION pyquest)
