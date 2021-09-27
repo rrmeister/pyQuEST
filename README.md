@@ -17,9 +17,9 @@ $ python3 -m venv .
 $ source bin/activate
 ```
 
-To configure the QuEST backend for multithreading, GPU usage, float precision, etc., have a look at the QuEST build documentation.
+> By default, pyQuEST will use double precision for its floating point variables, have multithreading enabled, but GPU acceleration and distributed computing disabled. These settings can be changed in the dictionary `quest_config` at the top of `setup.py` *before* compiling and installing the package.
 
-The package can then be installed using pip.
+After setting the compile options as required, the package can be compiled and installed using pip.
 
 ```console
 $ pip3 install .
