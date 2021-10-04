@@ -6,6 +6,10 @@ set(CYTHON_FLAGS "${CYTHON_FLAGS} -X binding=True -X embedsignature=True"
     CACHE INTERNAL "Embed function signatures in docstrings")
 set(CYTHON_ANNOTATE True CACHE BOOL
     "Create annotated HTML for Cython code to inspect Python interactions")
+# Cython needs this defined on MINGW64
+if(MINGW AND (CMAKE_SIZEOF_VOID_P EQUAL 8))
+    add_compile_definitions(MS_WIN64)
+endif()
 
 # scikit-build modules needed for compilation.
 find_package(PythonExtensions REQUIRED)
