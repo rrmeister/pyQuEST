@@ -50,7 +50,7 @@ cdef class MatrixOperator(MultiQubitOperator):
 
 
 cdef class DiagonalOperator(GlobalOperator):
-    pass
+    cdef quest.DiagonalOp _diag_op
 
 
 cdef class PauliProduct(GlobalOperator):

@@ -459,9 +459,48 @@ cdef class TrotterCircuit(GlobalOperator):
 
 cdef class DiagonalOperator(GlobalOperator):
 
-    def __cinit__(self, diag_elements, num_qubits):
+    def __cinit__(self, num_qubits, diag_elements=None):
+        cdef QuESTEnv *env_ptr = <QuESTEnv*>PyCapsule_GetPointer(
+            pyquest.env.env_capsule, NULL)
+        cdef qreal[:] real_el, imag_el
         self.TYPE = OP_TYPES.OP_DIAGONAL
-        raise NotImplementedError("DiagonalOperator not yet implemented.")
+        self._diag_op = quest.createDiagonalOp(num_qubits, env_ptr[0])
+        if diag_elements is not None:
+            # We'll try to handle anything that can be an ndarray by
+            # just giving it to the np.array constructor.
+            if not isinstance(diag_elements, np.ndarray):
+                diag_elements = np.array(diag_elements)
+            diag_elements = diag_elements.squeeze()
+            if diag_elements.ndim != 1:
+                raise ValueError("'diag_elements' must only have one "
+                                 "dimension.")
+            if diag_elements.size != 1 << self._diag_op.numQubits:
+                raise ValueError("'diag_elements' must have length of "
+                                 "2**num_qubits")
+            # FIXME This possibly creates copies of real and imaginary
+            #       parts (QuEST requires contiguous arrays for real and
+            #       imag separately), so doing it in chunks or write
+            #       straight to memory would be better.
+            real_el = np.require(
+                diag_elements.real, dtype=pyquest.core.np_qreal,
+                requirements='C')
+            imag_el = np.require(
+                diag_elements.imag, dtype=pyquest.core.np_qreal,
+                requirements='C')
+            quest.initDiagonalOp(self._diag_op, &real_el[0], &imag_el[0])
+
+    def __dealloc__(self):
+        cdef QuESTEnv *env_ptr = <QuESTEnv*>PyCapsule_GetPointer(
+            pyquest.env.env_capsule, NULL)
+        quest.destroyDiagonalOp(self._diag_op, env_ptr[0])
+
+    def __repr__(self):
+        return ("<" + type(self).__name__ + " on "
+                + str(self._diag_op.numQubits) + " qubits at "
+                + hex(id(self)) + ">")
+
+    cdef int apply_to(self, Qureg c_register) except -1:
+        quest.applyDiagonalOp(c_register, self._diag_op)
 
 
 class _BitEncoding(enum.IntEnum):

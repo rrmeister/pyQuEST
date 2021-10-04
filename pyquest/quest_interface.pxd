@@ -57,7 +57,7 @@ cdef extern from "QuEST.h":
         int numQubitsRepresented
         int isDensityMatrix
     ctypedef struct DiagonalOp:
-        pass
+        int numQubits
     ctypedef struct PauliHamil:
         pass
     ctypedef struct Vector:
@@ -110,6 +110,9 @@ cdef extern from "QuEST.h":
     # Generic operators
     ComplexMatrixN createComplexMatrixN(int numQubits) except +
     void destroyComplexMatrixN(ComplexMatrixN m) except +
+    DiagonalOp createDiagonalOp(int numQubits, QuESTEnv env) except +
+    void initDiagonalOp(DiagonalOp op, qreal* real, qreal* imag) except +
+    void destroyDiagonalOp(DiagonalOp op, QuESTEnv env) except +
     void applyDiagonalOp(Qureg qureg, DiagonalOp op) except +
     void applyMatrix2(Qureg qureg, int targetQubit, ComplexMatrix2 u) except +
     void applyMatrix4(Qureg qureg, int targetQubit1, int targetQubit2,
