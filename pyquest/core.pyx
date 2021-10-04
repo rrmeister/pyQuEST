@@ -79,8 +79,8 @@ cdef class QuESTEnvironment:
 
     def __repr__(self):
         """Get a string containing all environment info at once."""
-        return (f"{type(self).__name__}(cuda={self._cuda}, "
-                f"openmp={self._openmp}, mpi={self._mpi}, "
+        return (f"{type(self).__name__}(gpu_accelerated={self._cuda}, "
+                f"multithreaded={self._openmp}, distributed={self._mpi}, "
                 f"num_threads={self._num_threads}, "
                 f"rank={self.c_env.rank}, "
                 f"num_ranks={self._num_ranks}, "
