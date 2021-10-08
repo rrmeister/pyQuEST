@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.13)
 # Need to hand off the QuEST precision to the Cython compiler as well.
 set(CYTHON_FLAGS "-E QuEST_PREC=${PRECISION}" CACHE INTERNAL
     "QuEST precision passed to the pyQuEST compilation")
@@ -6,7 +7,7 @@ set(CYTHON_FLAGS "${CYTHON_FLAGS} -X binding=True -X embedsignature=True"
     CACHE INTERNAL "Embed function signatures in docstrings")
 set(CYTHON_ANNOTATE True CACHE BOOL
     "Create annotated HTML for Cython code to inspect Python interactions")
-# Cython needs this defined on MINGW64
+# Cython needs this defined on MinGW64
 if(MINGW AND (CMAKE_SIZEOF_VOID_P EQUAL 8))
     add_compile_definitions(MS_WIN64)
 endif()
@@ -37,6 +38,12 @@ foreach(cy_target ${CY_TARGETS})
     python_extension_module(${cy_target})
     target_include_directories(${cy_target} PUBLIC ${NumPy_INCLUDE_DIRS})
     target_link_libraries(${cy_target} QuEST error_handler)
+
+    # MinGW64 uses its own libraries which are usually not in the dll search path on Windows.
+    # Therefore statically link all relevant libraries directly into the modules.
+    if(MINGW AND (CMAKE_SIZEOF_VOID_P EQUAL 8))
+        target_link_options(${cy_target} PUBLIC -static-libgcc -static-libstdc++ -Wl,-Bstatic,--whole-archive -lwinpthread -Wl,--no-whole-archive)
+    endif()
 
     # Disable "deprecated" warnings until Cython is updated to not use
     # tp_print anymore.
