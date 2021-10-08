@@ -483,10 +483,10 @@ cdef class DiagonalOperator(GlobalOperator):
             #       straight to memory would be better.
             real_el = np.require(
                 diag_elements.real, dtype=pyquest.core.np_qreal,
-                requirements='C')
+                requirements='CW')
             imag_el = np.require(
                 diag_elements.imag, dtype=pyquest.core.np_qreal,
-                requirements='C')
+                requirements='CW')
             quest.initDiagonalOp(self._diag_op, &real_el[0], &imag_el[0])
 
     def __dealloc__(self):
