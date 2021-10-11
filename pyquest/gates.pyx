@@ -54,13 +54,13 @@ cdef class M(MultiQubitOperator):
             self._force = <int*>malloc(self._num_targets * sizeof(self._force[0]))
             if self._num_targets == 1:
                 try:
-                    self._force[0] = force[0] if force is not None else -1
+                    self._force[0] = force if force is not None else -1
                 except TypeError:
                     if len(force) != self._num_targets:
                         raise ValueError(
                             "Number of forced outcomes must match the number "
                             "of targets.")
-                    self._force[0] = force if force is not None else -1
+                    self._force[0] = force[0] if force is not None else -1
             else:
                 if len(force) != self._num_targets:
                     raise ValueError(
