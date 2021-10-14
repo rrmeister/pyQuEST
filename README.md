@@ -4,39 +4,25 @@ A Python interface for the Quantum Exact Simulation Toolkit (QuEST) written main
 
 ## Getting started
 After cloning the repository
-
 ```console
 $ git clone -b develop --recursive https://github.com/rrmeister/pyQuEST
-$ cd pyQuEST
 ```
-
-it is recommended to create a virtual environment, e.g. with `venv`.
-
+it is recommended to create a virtual environment, e.g. with `venv`, we'll call it `quantum-playground`.
 ```console
-$ python3 -m venv .
-$ source bin/activate
+$ python3 -m venv quantum-playground
+$ source quantum-playground/bin/activate
 ```
-
 > By default, pyQuEST will use double precision for its floating point variables, have multithreading enabled, but GPU acceleration and distributed computing disabled. These settings can be changed in the dictionary `quest_config` at the top of `setup.py` *before* compiling and installing the package.
 
-After setting the compile options as required, the package can be compiled and installed using pip.
-
+After setting the compile options as required, the package can be compiled and installed using `pip3`.
 ```console
-$ pip3 install .
+$ pip3 install ./pyQuEST
 ```
-
 > For this last step — depending on your system — you might have to separately install the Python development headers, usually called `python3-dev` or `python3-devel`. Check your distribution for details if the installer cannot find `Python.h`.
 
 ## Usage
-After successful installation, we must first exit the `pyQuEST` directory, and can then start a Python interpreter, with e.g. `ipython` or `python3`.
-
-```console
-$ cd ..
-$ ipython
-```
-> If the interpreter is launched in the `pyQuEST` directory, the `pyquest` source folder takes precedence over the installed package with the same name, and the import fails.
-
-Here we can test pyQuEST by importing it and having a look at the environment it is running in.
+After successful installation, we can start a Python interpreter — with e.g. `ipython` or `python3` — and import pyQuEST to have a look at the environment it is running in.
+> Make sure to not launch your interpreter from within the `pyQuEST` folder, as the `pyquest` source directory would take precedence over the installed package and cause the import to fail.
 
 ```python
 In [1]: import pyquest
@@ -44,8 +30,7 @@ In [1]: import pyquest
 In [2]: pyquest.env
 Out[2]: QuESTEnvironment(cuda=False, openmp=False, mpi=False, num_threads=1, num_ranks=1, precision=2)
 ```
-
-The `QuESTEnvironment` class is automatically instantiated once upon module import and never needs to be called by the user. It contains internals and can return information about the execution environment, as above.
+The `QuESTEnvironment` class is automatically instantiated once upon module import and never needs to be called by the user. It contains internals and can return information about the execution environment, as above. If you changed the options in `setup.py`, make sure these are reflected in this output. If they are not, this indicates a problem during compiling.
 
 ### Example
 The most important classes are `Register` representing a quantum register, and the operators which can be applied to it. Let's create such a register with 3 qubits and look at its contents.
