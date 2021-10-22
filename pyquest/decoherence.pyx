@@ -46,13 +46,17 @@ cdef class PauliNoise(SingleQubitOperator):
 
 
 cdef class MixDensityMatrix(GlobalOperator):
-    def __cinit__(self, prob, density_matrix, copy_register=True):
+    def __cinit__(self, prob, Register density_matrix, copy_register=True):
         self.TYPE = OP_TYPES.OP_MIX_DENSITY
         self._prob = prob
+        if not density_matrix.is_density_matrix:
+            raise ValueError("Register 'density_matrix' must be "
+                             "a density matrix.")
         if copy_register:
-            self._other_qureg = density_matrix.copy()
+            self._other_register = density_matrix.copy()
         else:
-            self._other_qureg = density_matrix
+            self._other_register = density_matrix
 
     cdef int apply_to(self, Qureg c_register) except -1:
-        quest.mixDensityMatrix(c_register, self._prob, self._other_qureg)
+        quest.mixDensityMatrix(c_register, self._prob,
+                               self._other_register.c_register)

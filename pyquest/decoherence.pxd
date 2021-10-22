@@ -4,7 +4,7 @@ from pyquest.quest_interface cimport qreal, Qureg
 from pyquest.quest_interface cimport ComplexMatrix2, ComplexMatrix4, ComplexMatrixN
 from pyquest.quest_interface cimport createComplexMatrixN, destroyComplexMatrixN
 from pyquest.operators cimport SingleQubitOperator, MultiQubitOperator, GlobalOperator
-from pyquest.core cimport OP_TYPES
+from pyquest.core cimport OP_TYPES, Register
 
 
 cdef class Noise(SingleQubitOperator):
@@ -36,4 +36,4 @@ cdef class PauliNoise(SingleQubitOperator):
 
 cdef class MixDensityMatrix(GlobalOperator):
     cdef qreal _prob
-    cdef Qureg _other_qureg
+    cdef Register _other_register
