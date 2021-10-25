@@ -39,6 +39,11 @@ foreach(cy_target ${CY_TARGETS})
     target_include_directories(${cy_target} PUBLIC ${NumPy_INCLUDE_DIRS})
     target_link_libraries(${cy_target} QuEST error_handler)
 
+    # Cython <3.0 uses an old numpy API which causes numpy to raise a warning.
+    # We can't do anything about the API version, so we just silence that warning
+    # by setting NPY_NO_DEPRECATED_API to 0.
+    target_compile_definitions(${cy_target} PUBLIC NPY_NO_DEPRECATED_API=0)
+
     # MinGW64 uses its own libraries which are usually not in the dll search path on Windows.
     # Therefore statically link all relevant libraries directly into the modules.
     if(MINGW AND (CMAKE_SIZEOF_VOID_P EQUAL 8))
