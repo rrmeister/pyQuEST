@@ -23,7 +23,7 @@ ELIF QuEST_PREC == 2:
     ctypedef double complex qcomp
 ELIF QuEST_PREC == 4:
     ctypedef long double qreal
-    ctypedef long double complex  qcomp
+    ctypedef long double complex qcomp
 
 
 cdef extern from "error_handler.h":
@@ -53,6 +53,8 @@ cdef extern from "QuEST.h":
         qreal **real
         qreal **imag
     ctypedef struct Qureg:
+        int chunkId
+        ComplexArray stateVec
         long long int numAmpsTotal
         int numQubitsRepresented
         int isDensityMatrix
