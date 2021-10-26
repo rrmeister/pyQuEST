@@ -547,12 +547,12 @@ cdef class Register:
         """Return whether the register represents a density matrix."""
         return self.c_register.isDensityMatrix != 0
 
-    cpdef copy(self):
+    cpdef Register copy(self):
         """Return a new ``Register`` with a copy of the state."""
         self._apply_delayed_operations()
         return Register(copy_reg=self)
 
-    cpdef copy_to(self, Register other):
+    cpdef void copy_to(self, Register other):
         """Copy the state to another ``Register``.
 
         The other register must have the same number of qubits and be
@@ -561,7 +561,7 @@ cdef class Register:
         self._apply_delayed_operations()
         quest.cloneQureg(other.c_register, self.c_register)
 
-    cpdef copy_from(self, Register other):
+    cpdef void copy_from(self, Register other):
         """Copy the state from another ``Register``.
 
         The other register must have the same number of qubits and be
