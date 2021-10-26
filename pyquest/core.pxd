@@ -30,6 +30,7 @@ cdef class Register:
     cdef Qureg c_register
     cdef object _borrowed_from
     cdef object _borrowers
+    cdef Complex _scaling_factor
     cpdef init_blank_state(self)
     cpdef apply_circuit(self, Circuit circ)
     cpdef apply_operator(self, BaseOperator op)
@@ -49,6 +50,8 @@ cdef class Register:
     cdef void _unregister_borrower(self, borrower)
     cdef void _set_borrowee(self, borrowee)
     cdef void _ensure_no_borrow(self)
+    cdef void _apply_delayed_operations(self)
+    cdef void _apply_scaling(self)
 
 
 cdef class Circuit(GlobalOperator):

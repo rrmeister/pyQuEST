@@ -173,7 +173,7 @@ cdef class Register:
     qubits, either as a pure state vector, or a density matrix.
     """
 
-    def __cinit__(self, int num_qubits=0, density_matrix=False,
+    def __cinit__(self, int num_qubits=-1, density_matrix=False,
                   Register copy_reg=None):
         """Create new register from scratch or copy an existing state.
 
@@ -181,14 +181,25 @@ cdef class Register:
             num_qubits (int): Number of qubits in the register. For
                 density matrices the number of qubits internally
                 required to represent the state is 2 * num_qubits.
-                Ignored if copy_reg is given.
+                Must not be passed if copy_reg is not None.
             density_matrix (bool): True if the register should represent
                 a density matrix, False otherwise. Ignored if copy_reg
                 is not None. Defaults to False.
             copy_reg (pyquest.Register): If given and not None, makes
-                the newly created register an exact copy of copy_reg
-                while ignoring num_qubits and density_matrix parameters.
+                the newly created register an exact copy of copy_reg.
         """
+        if num_qubits < 0 and copy_reg is None:
+            raise TypeError("One of 'num_qubits' or 'copy_reg' must be given.")
+        if num_qubits >= 0 and copy_reg is not None:
+            raise TypeError("Only one of 'num_qubits' or 'copy_reg' must "
+                            "be given.")
+        self._scaling_factor.real = 1
+        self._scaling_factor.imag = 0
+        self._borrowed_from = None
+        self._borrowers = WeakSet()
+        if num_qubits == 0:
+            self.c_register.numAmpsTotal = 0
+            return
         if copy_reg is None:
             if density_matrix:
                 self.c_register = quest.createDensityQureg(
@@ -199,7 +210,7 @@ cdef class Register:
         else:
             self.c_register = quest.createCloneQureg(
                 copy_reg.c_register, (<QuESTEnvironment>pyquest.env).c_env)
-        logger.info("Created quantum register " + str(self))
+        logger.info("Created quantum register at " + hex(id(self)))
         (<QuESTEnvironment>pyquest.env).log_register(self)
 
     def __dealloc__(self):
@@ -211,6 +222,7 @@ cdef class Register:
         There is no way to pass the full state into the constructor, so
         the amplitudes are used as an argument for ``__setstate__``.
         """
+        self._apply_delayed_operations()
         if self.is_density_matrix:
             state = self[:, :]
         else:
@@ -226,12 +238,22 @@ cdef class Register:
         else:
             self[:] = state
 
-    def __mul__(self, other):
-        """Get inner product with the state in ``other``.
+    def __mul__(left, right):
+        """Get product with scalar or other Register.
 
-        Currently, multiplication is only supported with other
-        ``Register``s, and returns their inner product for pure states,
-        or their Hilbert-Schmidt scalar product for density matrices.
+        Multiplying a Register with a (complex) scalar means multiplying
+        every entry in the state vector by that scalar. If the norm of
+        the scalar is not one, this will result in an unphysical state
+        of the register. The multiplication with the underlying data
+        structure is a lazy operation and will only be applied to the
+        register when it is accessed again after the multiplication.
+        This is to allow efficient implementation of weighted sums like
+        ``reg3 = c1 * reg1 + c2 * reg2``, for which there is a dedicated
+        implementation by the QuEST backend.
+
+        Multiplying with another Register returns their inner product
+        for pure states, or their Hilbert-Schmidt scalar product for
+        density matrices.
 
         Raises:
             QuESTError: If self and other are not both state vecotrs
@@ -241,16 +263,28 @@ cdef class Register:
         #        two state vectors yields a different result from
         #        multiplying two density matrices in the same pure
         #        states.
-        if isinstance(other, Register):
-            return self.inner_product(other)
-        else:
+        cdef Register reg, res_reg
+        cdef qcomp factor
+        if isinstance(left, Register) and isinstance(right, Register):
+            return left.inner_product(right)
+        try:
+            # This is specific to Cython < 3.0.
+            if isinstance(right, Register):
+                reg = right
+                factor = left
+            else:
+                reg = left
+                factor = right
+        except (ValueError, TypeError):
             return NotImplemented
-
-    def __rmul__(self, other):
-        if isinstance(other, Register):
-            return np.conj(self.inner_product(other))
-        else:
-            return NotImplemented
+        res_reg = Register._create_with_borrowed_reference(reg)
+        res_reg._scaling_factor.real = (
+            factor.real * reg._scaling_factor.real
+            - factor.imag * reg._scaling_factor.imag)
+        res_reg._scaling_factor.imag = (
+            factor.imag * reg._scaling_factor.real
+            + factor.real * reg._scaling_factor.imag)
+        return res_reg
 
     def __getitem__(self, index):
         """Get amplitudes from the state.
@@ -291,6 +325,7 @@ cdef class Register:
                 array of length ``len(index)``, a density matrix returns
                 an arrays of size (len(index[0]) x len(index[1])).
         """
+        self._apply_delayed_operations()
         if self.c_register.isDensityMatrix and len(index) != 2:
             raise TypeError("Density matrix must be accessed with 2 "
                             "indices.")
@@ -331,6 +366,7 @@ cdef class Register:
         """
         # FIXME Needs a refactor into several special-case functions and
         #       a generic handler.
+        self._apply_delayed_operations()
         cdef size_t start, stop, k, m, num_index
         cdef int step
         cdef qreal val_imag, val_real
@@ -456,6 +492,7 @@ cdef class Register:
 
                 The returned array has a size of ``2**len(qubits)``.
         """
+        self._apply_delayed_operations()
         cdef int[:] arr_qubits = np.array(qubits, dtype=np.intc,
                                           order='C', copy=False).ravel()
         cdef int num_qubits = arr_qubits.size
@@ -468,6 +505,7 @@ cdef class Register:
     @property
     def purity(self):
         """Return the purity of the stored quantum state."""
+        self._apply_delayed_operations()
         if not self.c_register.isDensityMatrix:
             return 1.
         return quest.calcPurity(self.c_register)
@@ -480,6 +518,7 @@ cdef class Register:
         will be 1. More accurate than self * self. For not-normalised
         density matrices, only the real part of the trace is returned.
         """
+        self._apply_delayed_operations()
         return quest.calcTotalProb(self.c_register)
 
     @property
@@ -489,6 +528,7 @@ cdef class Register:
 
     cpdef copy(self):
         """Return a new ``Register`` with a copy of the state."""
+        self._apply_delayed_operations()
         return Register(copy_reg=self)
 
     cpdef copy_to(self, Register other):
@@ -497,6 +537,7 @@ cdef class Register:
         The other register must have the same number of qubits and be
         of the same type (state vector or density matrix).
         """
+        self._apply_delayed_operations()
         quest.cloneQureg(other.c_register, self.c_register)
 
     cpdef copy_from(self, Register other):
@@ -505,6 +546,7 @@ cdef class Register:
         The other register must have the same number of qubits and be
         of the same type (state vector or density matrix).
         """
+        self._apply_delayed_operations()
         quest.cloneQureg(self.c_register, other.c_register)
 
     def destroy_reg(self):
@@ -528,6 +570,8 @@ cdef class Register:
             QuESTError: If self and other are not both state vecotrs or
                 both density matrices.
         """
+        self._apply_delayed_operations()
+        other._apply_delayed_operations()
         cdef Complex prod
         if self.c_register.isDensityMatrix:
             return quest.calcDensityInnerProduct(
@@ -542,6 +586,7 @@ cdef class Register:
         If the circuit contains any measurements, their outcomes are
         returned as a (nested) list.
         """
+        self._apply_delayed_operations()
         cdef size_t k
         cdef list meas_results = []
         for k in range(circ.c_operations.size()):
@@ -557,6 +602,7 @@ cdef class Register:
         If the operator is a measurement, returns the measured outcomes
         as a list.
         """
+        self._apply_delayed_operations()
         op.apply_to(self.c_register)
         if op.TYPE == OP_TYPES.OP_MEASURE:
             return (<M>op).results
@@ -564,6 +610,8 @@ cdef class Register:
     cpdef init_blank_state(self):
         """Set all amplitudes to zero."""
         quest.initBlankState(self.c_register)
+        self._coefficient.real = 1
+        self._coefficient.imag = 0
 
     @staticmethod
     def zero_like(Register other):
@@ -655,6 +703,23 @@ cdef class Register:
             (<Register>self._borrowers.pop())._set_borrowee(self._borrowed_from)
         # Make a copy ourselves
         self._set_borrowee(None)
+
+    cdef void _apply_delayed_operations(self):
+        """Execute all lazy operations yet to do on an object."""
+        self._ensure_no_borrow()
+        self._apply_scaling()
+
+    cdef void _apply_scaling(self):
+        cdef Complex zero
+        if self._scaling_factor.real != 1 or self._scaling_factor.imag != 0:
+            self._ensure_no_borrow()
+            zero.real = 0.
+            zero.imag = 0.
+            quest.setWeightedQureg(
+                zero, self.c_register, zero, self.c_register,
+                self._scaling_factor, self.c_register)
+            self._scaling_factor.real = 1
+            self._scaling_factor.imag = 0
 
     # FIXME this should have an "except?" decorator, but this currently
     # crashes the cython compiler for complex return types.
