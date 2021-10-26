@@ -28,6 +28,8 @@ cdef class QuESTEnvironment:
 cdef class Register:
     cdef object __weakref__  # Makes Register weak-refable in Cython
     cdef Qureg c_register
+    cdef object _borrowed_from
+    cdef object _borrowers
     cpdef init_blank_state(self)
     cpdef apply_circuit(self, Circuit circ)
     cpdef apply_operator(self, BaseOperator op)
@@ -42,6 +44,11 @@ cdef class Register:
     cdef qcomp[:, :] _get_state_from_row_slice(self, slice row_slice, col_index)
     cdef qcomp[:, :] _get_state_from_indexables(self, row_index, col_index)
     cdef _fix_index(self, index)
+    cdef Register _create_with_borrowed_reference(Register original_reg)
+    cdef void _register_borrower(self, new_borrower)
+    cdef void _unregister_borrower(self, borrower)
+    cdef void _set_borrowee(self, borrowee)
+    cdef void _ensure_no_borrow(self)
 
 
 cdef class Circuit(GlobalOperator):

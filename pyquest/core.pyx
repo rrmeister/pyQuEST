@@ -20,7 +20,7 @@ Classes:
 """
 
 import logging
-from weakref import WeakSet
+from weakref import WeakSet, ref
 import cython
 import numpy as np
 
@@ -583,15 +583,78 @@ cdef class Register:
         Will not delete self, but free the QuEST struct containing the
         state, so the object afterwards is essentially useless.
         """
+        cdef Register new_owner
+        logger.info("Destroying quantum register at " + hex(id(self)))
         # Only call destroyQureg if this is a valid Qureg;
         # otherwise destroyQureg will segfault.
-        if self.c_register.numAmpsTotal > 0:
-            logger.info("Destroying quantum register " + str(self))
-            quest.destroyQureg(self.c_register, (<QuESTEnvironment>pyquest.env).c_env)
-            self.c_register.numAmpsTotal = 0
-        else:
-            logger.debug("Trying to destroy quantum register "
-                         + str(self) + ", but is already destroyed")
+        if self.c_register.numAmpsTotal == 0:
+            logger.debug("Underlying Qureg already destroyed")
+            return
+        # A borrowed c_register must not be destroyed.
+        if self._borrowed_from is not None:
+            logger.debug("Leaving borrowed Qureg untouched")
+            return
+        # If the qureg in this Register has been borrowed, ownership can
+        # be transferred to any of the borrowers, and the other
+        # borrowers are now borrowers of that new owner.
+        if self._borrowers:
+            new_owner = next(iter(self._borrowers))
+            while self._borrowers:
+                (<Register>self._borrowers.pop())._set_borrowee(new_owner)
+            logger.debug("Transferred ownership of Qureg to Register "
+                         "at " + hex(id(new_owner)))
+            return
+        quest.destroyQureg(self.c_register,
+                           (<QuESTEnvironment>pyquest.env).c_env)
+        self.c_register.numAmpsTotal = 0
+
+    @staticmethod
+    cdef Register _create_with_borrowed_reference(Register original_reg):
+        reg = Register(0)
+        reg._scaling_factor = original_reg._scaling_factor
+        reg._set_borrowee(original_reg)
+        reg.c_register = original_reg.c_register
+        return reg
+
+    cdef void _register_borrower(self, new_borrower):
+        if isinstance(new_borrower, ref):
+            new_borrower = new_borrower()
+        self._borrowers.add(<Register?>new_borrower)
+
+    cdef void _unregister_borrower(self, borrower):
+        if isinstance(borrower, ref):
+            borrower = borrower()
+        self._borrowers.discard(<Register?>borrower)
+
+    cdef void _set_borrowee(self, borrowee):
+        if isinstance(borrowee, ref):
+            borrowee = borrowee()
+        if borrowee is self:
+            self._borrowed_from = None
+            return
+        if borrowee is None:
+            if self._borrowed_from is not None:
+                self.c_register = quest.createCloneQureg(
+                    (<Register>self._borrowed_from()).c_register,
+                    (<QuESTEnvironment>pyquest.env).c_env)
+                (<Register>self._borrowed_from())._unregister_borrower(self)
+                self._borrowed_from = None
+            return
+        if self._borrowed_from is not None:
+            (<Register>self._borrowed_from())._unregister_borrower(self)
+        # Can't use a proxy here, because that would make the typecast
+        # to a Register later unsafe, so must use ref().
+        self._borrowed_from = ref(borrowee)
+        (<Register>self._borrowed_from())._register_borrower(self)
+
+    cdef void _ensure_no_borrow(self):
+        """Make sure the stored Qureg belongs to only this instance."""
+        # Notify all borrowers we will change the Qureg. We can point
+        # them to our borrowee if our register is borrowed.
+        while self._borrowers:
+            (<Register>self._borrowers.pop())._set_borrowee(self._borrowed_from)
+        # Make a copy ourselves
+        self._set_borrowee(None)
 
     # FIXME this should have an "except?" decorator, but this currently
     # crashes the cython compiler for complex return types.
