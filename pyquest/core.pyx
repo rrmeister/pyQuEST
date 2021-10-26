@@ -338,6 +338,10 @@ cdef class Register:
                 array of length ``len(index)``, a density matrix returns
                 an arrays of size (len(index[0]) x len(index[1])).
         """
+        if not self.is_alive:
+            raise IndexError(
+                "Register has no amplitudes. Number of qubits is "
+                "zero or underlying data structure was destroyed.")
         self._apply_delayed_operations()
         if self.c_register.isDensityMatrix and len(index) != 2:
             raise TypeError("Density matrix must be accessed with 2 "
@@ -379,6 +383,10 @@ cdef class Register:
         """
         # FIXME Needs a refactor into several special-case functions and
         #       a generic handler.
+        if not self.is_alive:
+            raise IndexError(
+                "Register has no amplitudes. Number of qubits is "
+                "zero or underlying data structure was destroyed.")
         self._apply_delayed_operations()
         cdef size_t start, stop, k, m, num_index
         cdef int step
