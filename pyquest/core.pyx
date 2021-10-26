@@ -286,6 +286,19 @@ cdef class Register:
             + factor.real * reg._scaling_factor.imag)
         return res_reg
 
+    def __add__(left, right):
+        if not isinstance(left, Register) or not isinstance(right, Register):
+            return NotImplemented
+        cdef Register res_reg = Register.zero_like(left)
+        cdef Complex zero
+        zero.real = 0
+        zero.imag = 0
+        quest.setWeightedQureg(
+            (<Register>left)._scaling_factor, (<Register>left).c_register,
+            (<Register>right)._scaling_factor, (<Register>right).c_register,
+            zero, res_reg.c_register)
+        return res_reg
+
     def __getitem__(self, index):
         """Get amplitudes from the state.
 
