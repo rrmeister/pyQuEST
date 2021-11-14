@@ -2,7 +2,11 @@
     requires = ['setuptools', 'wheel', 'toml', 'scikit-build', 'cmake>=3.13', 'cython', 'numpy>=1.20']
     build-backend = 'setuptools.build_meta'  # Should be switched to skbuild-backend as soon as available.
 
-# This is not yet used by any backend tool, but we comply with PEP 621 and PEP 631 anyway.
+# This is not yet used by any backend tool, but we comply with PEP 621 and PEP 631 anyway. For now,
+# setup.py reads the metadata from this file and passes it to skbuild.setup(). It makes several
+# assumptions about the structure of the "project" table that are not required by PEP 621.
+# After any substantial changes to this table, even if they conform to PEP 621, setup.py should
+# therefore be checked to ensure the data is still parsed correctly.
 [project]
     name = "pyquest"
     version = "0.0.1"
