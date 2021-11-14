@@ -309,7 +309,7 @@ cdef class Register:
         return res_reg
 
     def __add__(left, right):
-        if not isinstance(left, Register) or not isinstance(right, Register):
+        if not (isinstance(left, Register) and isinstance(right, Register)):
             return NotImplemented
         cdef Register res_reg = Register.zero_like(left)
         cdef Complex zero
@@ -318,6 +318,21 @@ cdef class Register:
         quest.setWeightedQureg(
             (<Register>left)._scaling_factor, (<Register>left).c_register,
             (<Register>right)._scaling_factor, (<Register>right).c_register,
+            zero, res_reg.c_register)
+        return res_reg
+
+    def __sub__(left, right):
+        if not (isinstance(left, Register) and isinstance(right, Register)):
+            return NotImplemented
+        cdef Register res_reg = Register.zero_like(left)
+        cdef Complex zero, right_fac
+        zero.real = 0
+        zero.imag = 0
+        right_fac.real = -(<Register>right)._scaling_factor.real
+        right_fac.imag = -(<Register>right)._scaling_factor.imag
+        quest.setWeightedQureg(
+            (<Register>left)._scaling_factor, (<Register>left).c_register,
+            right_fac, (<Register>right).c_register,
             zero, res_reg.c_register)
         return res_reg
 
