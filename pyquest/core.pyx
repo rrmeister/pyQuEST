@@ -286,6 +286,28 @@ cdef class Register:
             + factor.real * reg._scaling_factor.imag)
         return res_reg
 
+    def __truediv__(left, right):
+        cdef Register left_reg, res_reg
+        cdef qcomp divisor
+        if not isinstance(left, Register):
+            return NotImplemented
+        try:
+            divisor = right
+        except (ValueError, TypeError):
+            return NotImplemented
+        # Needed so Cython knows the type of `left`.
+        left_reg = left
+        res_reg = Register._create_with_borrowed_reference(left_reg)
+        res_reg._scaling_factor.real = (
+            (left_reg._scaling_factor.real * divisor.real
+             + left_reg._scaling_factor.imag * divisor.imag)
+            / ((divisor.real)**2 + (divisor.imag)**2))
+        res_reg._scaling_factor.imag = (
+            (left_reg._scaling_factor.imag * divisor.real
+             - left_reg._scaling_factor.real * divisor.imag)
+            / ((divisor.real)**2 + (divisor.imag)**2))
+        return res_reg
+
     def __add__(left, right):
         if not isinstance(left, Register) or not isinstance(right, Register):
             return NotImplemented
