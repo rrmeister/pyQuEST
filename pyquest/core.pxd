@@ -48,7 +48,7 @@ cdef class Register:
     cdef Register _create_with_borrowed_reference(Register original_reg)
     cdef void _register_borrower(self, new_borrower)
     cdef void _unregister_borrower(self, borrower)
-    cdef void _set_borrowee(self, borrowee)
+    cdef _set_borrowee(self, borrowee)
     cdef void _ensure_no_borrow(self)
     cdef void _apply_delayed_operations(self)
     cdef void _apply_scaling(self)

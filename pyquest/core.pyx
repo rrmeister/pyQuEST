@@ -732,7 +732,7 @@ cdef class Register:
             borrower = borrower()
         self._borrowers.discard(<Register?>borrower)
 
-    cdef void _set_borrowee(self, borrowee):
+    cdef _set_borrowee(self, borrowee):
         if isinstance(borrowee, ref):
             borrowee = borrowee()
         if borrowee is self:
@@ -746,11 +746,19 @@ cdef class Register:
                 (<Register>self._borrowed_from())._unregister_borrower(self)
                 self._borrowed_from = None
             return
+        if not isinstance(borrowee, Register):
+            raise TypeError("Can only borrow from Register or None.")
         if self._borrowed_from is not None:
             (<Register>self._borrowed_from())._unregister_borrower(self)
-        # Can't use a proxy here, because that would make the typecast
-        # to a Register later unsafe, so must use ref().
-        self._borrowed_from = ref(borrowee)
+        # If we try to borrow from a Register that's already borrowed
+        # from some other Register, we point to the original Register
+        # right away. This way, no borrow chains need to be managed.
+        if (<Register>borrowee)._borrowed_from is not None:
+            self._borrowed_from = (<Register>borrowee)._borrowed_from
+        else:
+            # Can't use a proxy here, because that would make the
+            # typecast to a Register later unsafe, so must use ref().
+            self._borrowed_from = ref(borrowee)
         (<Register>self._borrowed_from())._register_borrower(self)
 
     cdef void _ensure_no_borrow(self):
