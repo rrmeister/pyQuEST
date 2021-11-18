@@ -72,6 +72,7 @@ cdef class QuESTEnvironment:
         self._mpi = prop_dict['MPI'] != '0'
         self._num_threads = int(prop_dict['threads'])
         self._num_ranks = int(prop_dict['ranks'])
+        gates.seed_quest(&self.c_env)
 
     def __dealloc__(self):
         self._close()

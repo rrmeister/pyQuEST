@@ -19,7 +19,9 @@ Classes:
 # some kind of communication between the modules to have the same seed
 # and advance the MT in all modules whenever a random number is
 # generated.
-quest.seedQuESTDefault()
+cdef void seed_quest(QuESTEnv* env):
+    quest.seedQuESTDefault(env)
+
 
 cdef class M(MultiQubitOperator):
     """Class implementing measurements.

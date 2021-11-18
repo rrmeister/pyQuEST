@@ -10,6 +10,7 @@ from pyquest.quest_interface cimport OP_TYPES, Qureg, QuESTEnv
 from pyquest.operators cimport BaseOperator, GlobalOperator
 from pyquest.gates cimport M
 cimport numpy as np
+cimport pyquest.gates as gates
 
 
 cdef class QuESTEnvironment:
