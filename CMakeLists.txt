@@ -14,18 +14,17 @@ set(QuEST_DIR "QuEST/QuEST" CACHE STRING
     "Name of the directory containing the QuEST library sources relative to the root CMakeLists.txt")
 
 # Build the QuEST library.
+set(BUILD_SHARED_LIBS TRUE CACHE BOOL "Build shared library")
 IF(APPLE)
     set(CMAKE_INSTALL_RPATH "@loader_path")
-    set(BUILD_SHARED_LIBS TRUE CACHE BOOL "Build shared library")
 elseif(UNIX)
     set(CMAKE_INSTALL_RPATH "$ORIGIN")
-    set(BUILD_SHARED_LIBS TRUE CACHE BOOL "Build shared library")
-else()
-    set(BUILD_SHARED_LIBS FALSE CACHE BOOL "Build shared library")
+elseif(WIN32)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
 endif()
 
 add_subdirectory(${QuEST_DIR})
-install(TARGETS QuEST LIBRARY DESTINATION pyquest)
+install(TARGETS QuEST DESTINATION pyquest)
 # Static linking the modules needs position independent code on some compilers.
 set_property(TARGET QuEST PROPERTY POSITION_INDEPENDENT_CODE ON)
 
