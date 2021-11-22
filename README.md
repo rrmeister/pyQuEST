@@ -5,7 +5,7 @@ A Python interface for the Quantum Exact Simulation Toolkit (QuEST) written main
 ## Getting started
 After cloning the repository
 ```console
-$ git clone -b develop --recursive https://github.com/rrmeister/pyQuEST
+$ git clone -b develop --recursive --shallow-submodules https://github.com/rrmeister/pyQuEST
 ```
 it is recommended to create a virtual environment, e.g. with `venv`, we'll call it `quantum-playground`.
 ```console
