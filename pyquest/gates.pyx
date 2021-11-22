@@ -11,17 +11,6 @@ Classes:
         Measurement of one or more qubits.
 """
 
-# Because QuEST is statically linked into pyquest, each module executes
-# its own copy of the code. Therefore, the pseudorandom seed set in core
-# is not communicated to the other modules. Calling seedQuESTDefault()
-# here is a temporary fix for this problem, but a dirty one. It will be
-# inevitable to load QuEST as a dynamic library (preferred) or establish
-# some kind of communication between the modules to have the same seed
-# and advance the MT in all modules whenever a random number is
-# generated.
-cdef void seed_quest(QuESTEnv* env):
-    quest.seedQuESTDefault(env)
-
 
 cdef class M(MultiQubitOperator):
     """Class implementing measurements.
