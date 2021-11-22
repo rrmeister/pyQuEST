@@ -1,23 +1,42 @@
 cmake_minimum_required(VERSION 3.5)
-if(SKBUILD)
-    message(STATUS "Building project using scikit-build")
-endif()
-message(STATUS "CMake version: ${CMAKE_VERSION}")
-message(STATUS "CMake build type: ${CMAKE_BUILD_TYPE}")
 
 project(
     pyQuEST_Project
     LANGUAGES C CXX)
 
-# Variables needed by QuEST.
-set(QuEST_DIR "QuEST/QuEST" CACHE STRING
-    "Name of the directory containing the QuEST library sources relative to the root CMakeLists.txt")
+if(SKBUILD)
+    message(STATUS "Building project " ${CMAKE_PROJECT_NAME} " using scikit-build")
+endif()
+message(STATUS "CMake version: ${CMAKE_VERSION}")
+message(STATUS "CMake build type: ${CMAKE_BUILD_TYPE}")
 
-# Build the QuEST static library.
-set(BUILD_SHARED_LIBS FALSE CACHE BOOL "Build shared library")
-add_subdirectory(${QuEST_DIR})
-# Static linking the modules needs position independent code on some compilers.
-set_property(TARGET QuEST PROPERTY POSITION_INDEPENDENT_CODE ON)
+# ==== QuEST ====
+# We want the QuEST library to be shared between all modules of pyQuEST.
+# Because building with static libraries would introduce bugs, we force
+# building a shared lib regardless of the cache variable.
+set(BUILD_SHARED_LIBS TRUE)
+# Build the QuEST library.
+add_subdirectory(QuEST/QuEST)
+# For Win32 `dll`s every exported symbol must usually be marked explicitly
+# as such. Fortunately, CMake supports automatic export of all symbols (yay).
+# On non-Windows systems, this is a NOP.
+set_property(TARGET QuEST PROPERTY WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+# The shared library goes directly into the 'pyquest' folder, so it can
+# easily be found by the modules.
+install(TARGETS QuEST DESTINATION pyquest)
 
-# Build and install the pyQuEST extension.
+# ==== pyQuEST ====
+if(APPLE)
+    # The @rpath is embedded in the Python modules and tells the loader where to
+    # look for dynamic libraries. In our case, it will be in the same directory as
+    # the modules (because QuEST is installed into the 'pyquest' directory, see
+    # above). On macOS, the module path is available as the variable '@loader_path'.
+    set(CMAKE_INSTALL_RPATH "@loader_path")
+elseif(UNIX)
+    # The same as for macOS goes for other Unix systems, but the path of the
+    # loader module is stored in '$ORIGIN'.
+    set(CMAKE_INSTALL_RPATH "$ORIGIN")
+endif()
+# pyquest installs all its targets automatically in the 'pyquest' folder,
+# so this call is all that is needed to add it.
 add_subdirectory(pyquest)
