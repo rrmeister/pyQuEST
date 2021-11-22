@@ -29,8 +29,6 @@ endif()
 
 add_subdirectory(${QuEST_DIR})
 install(TARGETS QuEST DESTINATION pyquest)
-# Static linking the modules needs position independent code on some compilers.
-set_property(TARGET QuEST PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Build and install the pyQuEST extension.
 add_subdirectory(pyquest)
