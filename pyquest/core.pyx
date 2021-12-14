@@ -488,6 +488,49 @@ cdef class Register:
                 val_imag = value.imag
                 quest.setAmps(self.c_register, index, &val_real, &val_imag, 1)
 
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    def set_block(self, values, start_index):
+        if not isinstance(values, np.ndarray):
+            raise TypeError("'values' must be a numpy.ndarray.")
+        if start_index + len(values) > self.num_amps:
+            raise ValueError("Writing 'values' from 'start_index' does not "
+                             "fit in the register.")
+        cdef qreal[:] arr_qreal
+        cdef qcomp[:] arr_qcomp
+        cdef qreal* arr_ptr
+        cdef size_t k
+        cdef long long int local_start_index = (start_index
+                                                - self.c_register.chunkId
+                                                * self.c_register.numAmpsPerChunk)
+        cdef long long int local_end_index = min(local_start_index + len(values),
+                                                 self.c_register.numAmpsPerChunk)
+        local_start_index = max(0, local_start_index)
+        cdef long long int offset = (self.c_register.chunkId
+                                     * self.c_register.numAmpsPerChunk
+                                     - start_index)
+        if values.dtype == np_qreal:
+            arr_qreal = values
+            arr_ptr = <qreal*>(&(arr_qreal[0]))
+            for k in range(local_start_index, local_end_index):
+                self.c_register.stateVec.real[k] = arr_ptr[offset + k]
+                self.c_register.stateVec.imag[k] = 0
+        elif values.dtype == np_qcomp:
+            arr_qcomp = values
+            # We make use of the memory layout of arrays of complex
+            # numbers, which is alternating between real and imag. QuEST
+            # has a different layout and needs real and imag arrays
+            # separately. By treating the complex Numpy array as a real
+            # array, we can alternate between real and imag entries and
+            # quickly write to QuEST's memory.
+            arr_ptr = <qreal*>(&(arr_qcomp[0]))
+            for k in range(local_start_index, local_end_index):
+                self.c_register.stateVec.real[k] = arr_ptr[2 * (offset + k)]
+                self.c_register.stateVec.imag[k] = arr_ptr[2 * (offset + k) + 1]
+        else:
+            raise TypeError("The dtype of 'values' must be either "
+                            "np_qreal or np_qcomp.")
+
     @property
     def is_alive(self):
         """Return whether the underlying QuEST structure is valid."""

@@ -54,6 +54,7 @@ cdef extern from "QuEST.h":
         qreal **imag
     ctypedef struct Qureg:
         int chunkId
+        long long int numAmpsPerChunk
         ComplexArray stateVec
         long long int numAmpsTotal
         int numQubitsRepresented
