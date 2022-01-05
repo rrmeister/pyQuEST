@@ -26,7 +26,7 @@ ELIF QuEST_PREC == 4:
     ctypedef long double complex qcomp
 
 
-cdef extern from "error_handler.h":
+cdef extern from "quest_error.h":
     # Place ``#include "error_handler.h"`` in the .cxx files.
     pass
 

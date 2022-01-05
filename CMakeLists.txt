@@ -17,6 +17,10 @@ message(STATUS "CMake build type: ${CMAKE_BUILD_TYPE}")
 set(BUILD_SHARED_LIBS TRUE)
 # Build the QuEST library.
 add_subdirectory(QuEST/QuEST)
+# To get proper exception/error handling, we must override `invalidQuESTInputError()`
+# in QuEST, which we can do by adding `pyquest/quest_exception.c` to its sources.
+target_include_directories(QuEST PUBLIC ${CMAKE_SOURCE_DIR}/pyquest)
+target_sources(QuEST PRIVATE ${CMAKE_SOURCE_DIR}/pyquest/quest_exception.cpp)
 # For Win32 `dll`s every exported symbol must usually be marked explicitly
 # as such. Fortunately, CMake supports automatic export of all symbols (yay).
 # On non-Windows systems, this is a NOP.

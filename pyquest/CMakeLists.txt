@@ -27,17 +27,16 @@ set(CY_TARGETS
     decoherence
     initialisations)
 
-# Error handling is done in a the separate header-only
-# library error_handler.
-add_library(error_handler INTERFACE)
-target_include_directories(error_handler INTERFACE .)
+# Error handling is done in a the separate header-only library quest_error.h.
+add_library(quest_error.h INTERFACE)
+target_include_directories(quest_error.h INTERFACE .)
 
 foreach(cy_target ${CY_TARGETS})
     add_cython_target(${cy_target} CXX PY3)
     add_library(${cy_target} MODULE ${${cy_target}})
     python_extension_module(${cy_target})
     target_include_directories(${cy_target} PUBLIC ${NumPy_INCLUDE_DIRS})
-    target_link_libraries(${cy_target} QuEST error_handler)
+    target_link_libraries(${cy_target} QuEST quest_error.h)
 
     # Cython <3.0 uses an old numpy API which causes numpy to raise a warning.
     # We can't do anything about the API version, so we just silence that warning
