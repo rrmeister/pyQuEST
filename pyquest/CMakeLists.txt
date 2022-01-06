@@ -62,11 +62,12 @@ foreach(cy_target ${CY_TARGETS})
     # MinGW64 uses its own libraries which are usually not in the dll search path on Windows.
     # Therefore statically link all relevant libraries directly into the modules.
     if(MINGW AND (CMAKE_SIZEOF_VOID_P EQUAL 8))
-        target_link_options(${cy_target} PUBLIC -static-libgcc -static-libstdc++ -Wl,-Bstatic,--whole-archive -lwinpthread -Wl,--no-whole-archive)
+        target_link_options(${cy_target} PUBLIC \
+                            -static-libgcc -static-libstdc++ \
+                            -Wl,-Bstatic,--whole-archive -lwinpthread -Wl,--no-whole-archive)
     endif()
 
-    # Disable "deprecated" warnings until Cython is updated to not use
-    # tp_print anymore.
+    # Disable "deprecated" warnings until Cython is updated to not use tp_print anymore.
     if (NOT MSVC)  # MSVC does not know this flag.
         target_compile_options(${cy_target} PRIVATE -Wno-deprecated-declarations)
     endif()
