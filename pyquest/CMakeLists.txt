@@ -1,12 +1,20 @@
 cmake_minimum_required(VERSION 3.13)
-# Need to hand off the QuEST precision to the Cython compiler as well.
-set(CYTHON_FLAGS "-E QuEST_PREC=${PRECISION}" CACHE INTERNAL
-    "QuEST precision passed to the pyQuEST compilation")
-# Embed function signatures in docstrings to make working in IDEs easier.
-set(CYTHON_FLAGS "${CYTHON_FLAGS} -X binding=True -X embedsignature=True"
-    CACHE INTERNAL "Embed function signatures in docstrings")
+
+# By default, embed function signatures in docstrings to make working in IDEs easier.
+# This part of the CYTHON_FLAGS can be overridden by the user.
+set(CYTHON_FLAGS "-X binding=True -X embedsignature=True" CACHE STRING
+    "Arguments to pass straight to Cython")
+
+# Need to hand off the QuEST precision to the Cython compiler as well. This part is
+# always appended to the user-specified CYTHON_FLAGS if not present. The PRECISION
+# cache variable is set in QuEST.
+if(NOT CYTHON_FLAGS MATCHES "QuEST_PREC")
+  string(APPEND CYTHON_FLAGS " -E QuEST_PREC=${PRECISION}")
+endif()
+
 set(CYTHON_ANNOTATE True CACHE BOOL
     "Create annotated HTML for Cython code to inspect Python interactions")
+
 # Cython needs this defined on MinGW64
 if(MINGW AND (CMAKE_SIZEOF_VOID_P EQUAL 8))
     add_compile_definitions(MS_WIN64)
