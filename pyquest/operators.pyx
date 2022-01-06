@@ -288,9 +288,9 @@ cdef class MatrixOperator(MultiQubitOperator):
     def __dealloc__(self):
         # For 1 or 2 qubits the matrix elements are directly in the
         # _matrix attribute, so they are freed togehter with _matrix.
-        if (self._matrix != NULL and (self._num_targets > 2
-                                      or self._num_controls > 0)):
-            destroyComplexMatrixN((<ComplexMatrixN*>self._matrix)[0])
+        if self._num_targets > 2 or self._num_controls > 0:
+            if self._matrix != NULL:
+                destroyComplexMatrixN((<ComplexMatrixN*>self._matrix)[0])
         else:
             # The arrays of the row-pointers for 1 and 2 qubits
             # are allocated manually, because the arrays themselves

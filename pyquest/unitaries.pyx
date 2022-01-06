@@ -82,16 +82,17 @@ cdef class U(MatrixOperator):
     def __dealloc__(self):
         # Because _create_array_property has been overridden,
         # deallocation must also be performed separately.
-        if (self._matrix != NULL and self._num_targets > 2):
-            destroyComplexMatrixN((<ComplexMatrixN*>self._matrix)[0])
+        if self._num_targets > 2:
+            if self._matrix != NULL:
+                destroyComplexMatrixN((<ComplexMatrixN*>self._matrix)[0])
         else:
             free(self._real)
             free(self._imag)
-            # The parent destructor might also call free on
-            # self._matrix, self._real, and self._imag. Setting them to
-            # NULL avoids freeing the same pointer twice.
-            self._real = NULL
-            self._imag = NULL
+        # The parent destructor might also call free on
+        # self._matrix, self._real, and self._imag. Setting them to
+        # NULL avoids freeing the same pointer twice.
+        self._real = NULL
+        self._imag = NULL
         free(self._matrix)
         self._matrix = NULL
         free(self._control_pattern)
