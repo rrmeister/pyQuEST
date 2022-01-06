@@ -15,9 +15,13 @@ endif()
 set(CYTHON_ANNOTATE True CACHE BOOL
     "Create annotated HTML for Cython code to inspect Python interactions")
 
-# Cython needs this defined on MinGW64
-if(MINGW AND (CMAKE_SIZEOF_VOID_P EQUAL 8))
-    add_compile_definitions(MS_WIN64)
+if(MINGW)
+    message(WARNING "In most cases, use of MinGW is not recommended for building Python "
+                    "extension modules. The module compiler should match the one used to "
+                    "compile Python, which is usually MSVC. Proceed with caution.")
+    # If the user really needs to use MinGW64, Cython needs this definition.
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        add_compile_definitions(MS_WIN64)
 endif()
 
 # scikit-build modules needed for compilation.
