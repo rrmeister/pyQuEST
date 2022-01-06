@@ -46,7 +46,11 @@ target_include_directories(quest_error.h INTERFACE .)
 foreach(cy_target ${CY_TARGETS})
     add_cython_target(${cy_target} CXX PY3)
     add_library(${cy_target} MODULE ${${cy_target}})
+    # Hide cryptic status message from PythonExtensions package by default.
+    # To print '_modinit_prefix' info anyway, remove the line below.
+    set(CMAKE_MESSAGE_LOG_LEVEL WARNING)
     python_extension_module(${cy_target})
+    unset(CMAKE_MESSAGE_LOG_LEVEL)
     target_include_directories(${cy_target} PUBLIC ${NumPy_INCLUDE_DIRS})
     target_link_libraries(${cy_target} QuEST quest_error.h)
 
