@@ -22,6 +22,7 @@ if(MINGW)
     # If the user really needs to use MinGW64, Cython needs this definition.
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         add_compile_definitions(MS_WIN64)
+    endif()
 endif()
 
 # scikit-build modules needed for compilation.
@@ -62,8 +63,8 @@ foreach(cy_target ${CY_TARGETS})
     # MinGW64 uses its own libraries which are usually not in the dll search path on Windows.
     # Therefore statically link all relevant libraries directly into the modules.
     if(MINGW AND (CMAKE_SIZEOF_VOID_P EQUAL 8))
-        target_link_options(${cy_target} PUBLIC \
-                            -static-libgcc -static-libstdc++ \
+        target_link_options(${cy_target} PUBLIC
+                            -static-libgcc -static-libstdc++
                             -Wl,-Bstatic,--whole-archive -lwinpthread -Wl,--no-whole-archive)
     endif()
 
