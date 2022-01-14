@@ -7,20 +7,16 @@ from pyquest.operators cimport SingleQubitOperator, MultiQubitOperator, GlobalOp
 from pyquest.core cimport OP_TYPES, Register
 
 
-cdef class Noise(SingleQubitOperator):
+cdef class Damping(SingleQubitOperator):
     cdef qreal _prob
 
 
-cdef class Damping(Noise):
-    pass
+cdef class Dephasing(MultiQubitOperator):
+    cdef qreal _prob
 
 
-cdef class Dephasing(Noise):
-    pass
-
-
-cdef class Depolarising(Noise):
-    pass
+cdef class Depolarising(MultiQubitOperator):
+    cdef qreal _prob
 
 
 cdef class KrausMap(MultiQubitOperator):
