@@ -1,30 +1,41 @@
-cdef class Noise(SingleQubitOperator):
-    def __cinit__(self, target, prob, *args, **kwargs):
-        self._prob = prob
-
-
-cdef class Damping(Noise):
+cdef class Damping(SingleQubitOperator):
     def __cinit__(self, target, prob):
         self.TYPE = OP_TYPES.OP_DAMP
+        self._prob = prob
 
     cdef int apply_to(self, Qureg c_register) except -1:
         quest.mixDamping(c_register, self._target, self._prob)
 
 
-cdef class Dephasing(Noise):
-    def __cinit__(self, target, prob):
+cdef class Dephasing(MultiQubitOperator):
+    def __cinit__(self, targets, prob):
         self.TYPE = OP_TYPES.OP_DEPHASE
+        if not 0 < self._num_targets < 3:
+            raise ValueError("Dephasing noise must act on 1 or 2 qubits.")
+        self._prob = prob
 
     cdef int apply_to(self, Qureg c_register) except -1:
-        quest.mixDephasing(c_register, self._target, self._prob)
+        if self._num_targets == 1:
+            quest.mixDephasing(c_register, self._targets[0], self._prob)
+        # Check for number of targets as extra safeguard.
+        elif self._num_targets == 2:
+            quest.mixTwoQubitDephasing(
+                c_register, self._targets[0], self._targets[1], self._prob)
 
 
-cdef class Depolarising(Noise):
+cdef class Depolarising(MultiQubitOperator):
     def __cinit__(self, target, prob):
         self.TYPE = OP_TYPES.OP_DEPOL
+        if not 0 < self._num_targets < 3:
+            raise ValueError("Depolarising noise must act on 1 or 2 qubits.")
+        self._prob = prob
 
     cdef int apply_to(self, Qureg c_register) except -1:
-        quest.mixDepolarising(c_register, self._target, self._prob)
+        if self._num_targets == 1:
+            quest.mixDepolarising(c_register, self._targets[0], self._prob)
+        if self._num_targets == 2:
+            quest.mixTwoQubitDepolarising(
+                c_register, self._targets[0], self._targets[1], self._prob)
 
 
 cdef class KrausMap(MultiQubitOperator):
