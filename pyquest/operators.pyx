@@ -510,9 +510,9 @@ class _BitEncoding(enum.IntEnum):
 
 class _PhaseFuncType(enum.IntEnum):
     # Careful when adding new functions to this enum, the PhaseFunc
-    # constructor and __repr__ rely on the "SCALED" and "INVERSE" naming
-    # conventions to determine the correct structure of parameters to
-    # pass to QuEST.
+    # constructor, __repr__, and inverse rely on the "SCALED" and
+    # "INVERSE" naming conventions to determine the correct structure
+    # of parameters to pass to QuEST.
     NORM = quest.phaseFunc.NORM
     SCALED_NORM = quest.phaseFunc.SCALED_NORM
     INVERSE_NORM = quest.phaseFunc.INVERSE_NORM
@@ -900,6 +900,31 @@ cdef class PhaseFunc(GlobalOperator):
     @property
     def bit_encoding(self):
         return self.BitEncoding(self._bit_encoding)
+
+    @property
+    def inverse(self):
+        constructor_args = {}
+        constructor_args['func_type'] = self.func_type
+        if self.terms:
+            constructor_args['terms'] = tuple(
+                (-term[0], term[1], term[2]) for term in self.terms)
+        else:
+            if not self.scaling:
+                # Every FuncType except 'EXPONENTIAL_POLYNOMIAL' has a
+                # 'SCALED' version which we must use to invert the sign.
+                constructor_args['func_type'] = f"SCALED_{self.func_type.name}"
+                constructor_args['scaling'] = -1
+            else:
+                constructor_args['scaling'] = -self.scaling
+        if self.divergence_override:
+            constructor_args['divergence_override'] = -self.divergence_override
+        if self.overrides:
+            constructor_args['overrides'] = {
+                k: -v for k, v in self.overrides.items()}
+        constructor_args['targets'] = self.targets
+        constructor_args['bit_encoding'] = self.bit_encoding
+        constructor_args['shifts'] = self.shifts
+        return PhaseFunc(**constructor_args)
 
     cdef int apply_to(self, Qureg c_register) except -1:
         pass
