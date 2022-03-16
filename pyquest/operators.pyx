@@ -681,7 +681,7 @@ cdef class PhaseFunc(GlobalOperator):
                 self._qubits_in_regs[qubit_counter] = targets[k][m]
                 qubit_counter += 1
 
-        if overrides is None:
+        if not overrides:
             self._num_overrides = 0
         else:
             self._num_overrides = len(overrides)
@@ -739,28 +739,41 @@ cdef class PhaseFunc(GlobalOperator):
                     self._coeffs[term_counter] = term[0]
                     self._exponents[term_counter] = term[2]
                     term_counter += 1
+        elif 'terms' in kwargs and kwargs['terms'] is not None:
+            raise TypeError("'terms' argument is only allowed for "
+                            "exponential polynomials.")
 
         # Since we control the _PhaseFuncType enum and must port
         # additional functions manually, we can rely on functions
         # that support scaling to contain 'SCALED', and potentially
         # diverging functions to contain 'INVERSE'.
-        if 'scaling' in kwargs and 'SCALED' not in func_type.name:
-            raise TypeError("'scaling' argument is only allowed for "
-                            "scalable functions.")
+        if ('scaling' in kwargs
+            and 'SCALED' not in func_type.name
+            and kwargs['scaling'] is not None):
+                raise TypeError("'scaling' argument is only allowed for "
+                                "scalable functions.")
 
         if 'SCALED' in func_type.name and 'scaling' not in kwargs:
             raise TypeError("Scaled function needs 'scaling' "
                             "keyword argument.")
 
+        if ('shifts' in kwargs
+            and 'SHIFTED' not in func_type.name
+            and kwargs['shifts'] is not None):
+                raise TypeError("'shifts' argument is only allowed for "
+                                "shifted functions.")
+
         if 'SHIFTED' in func_type.name and 'shifts' not in kwargs:
             raise TypeError("Shifted function needs 'shifts' keyword "
                             "argument")
 
-        if 'divergence_override' in kwargs and 'INVERSE' not in func_type.name:
-            raise TypeError(
-                "'divergence_override' only available for predefined "
-                "'INVERSE' functions. Specify manually via 'overrides' "
-                "for exponential polynomials.")
+        if ('divergence_override' in kwargs
+            and 'INVERSE' not in func_type.name
+            and kwargs['divergence_override'] is not None):
+                raise TypeError(
+                    "'divergence_override' only available for predefined "
+                    "'INVERSE' functions. Specify manually via 'overrides' "
+                    "for exponential polynomials.")
 
         if 'INVERSE' in func_type.name and 'divergence_override' not in kwargs:
             kwargs['divergence_override'] = 0
