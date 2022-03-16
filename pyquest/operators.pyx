@@ -851,12 +851,14 @@ cdef class PhaseFunc(GlobalOperator):
 
     @property
     def terms(self):
-        num_terms = sum(self._num_terms_per_reg[k] for k in range(self._num_regs))
-        coeffs = iter(self._coeffs[k] for k in range(num_terms))
-        exponents = iter(self._exponents[k] for k in range(num_terms))
-        return tuple((next(coeffs), k, next(exponents))
-                     for k in range(self._num_regs)
-                     for _ in range(self._num_terms_per_reg[k]))
+        if self._num_terms_per_reg:
+            num_terms = sum(self._num_terms_per_reg[k] for k in range(self._num_regs))
+            coeffs = iter(self._coeffs[k] for k in range(num_terms))
+            exponents = iter(self._exponents[k] for k in range(num_terms))
+            return tuple((next(coeffs), k, next(exponents))
+                         for k in range(self._num_regs)
+                         for _ in range(self._num_terms_per_reg[k]))
+        return None
 
     @property
     def scaling(self):
@@ -890,6 +892,14 @@ cdef class PhaseFunc(GlobalOperator):
         for k in range(self._num_parameters - start_ind):
             shift_arr[k] = self._parameters[k + start_ind]
         return shift_arr.base
+
+    @property
+    def func_type(self):
+        return self.FuncType(self._phase_func_type)
+
+    @property
+    def bit_encoding(self):
+        return self.BitEncoding(self._bit_encoding)
 
     cdef int apply_to(self, Qureg c_register) except -1:
         pass
