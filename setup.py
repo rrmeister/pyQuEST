@@ -88,7 +88,7 @@ def load_setup_args_from_pyproject():
             raise ValueError("'license' can only specify one of 'file' "
                              "or 'text'.")
         if 'file' in project['license']:
-            setup_args['license_file'] = project['license']['file']
+            setup_args['license_files'] = [project['license']['file']]
         else:
             setup_args['license'] = project['license']['text']
 

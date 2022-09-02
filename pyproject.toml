@@ -12,6 +12,7 @@
     version = "0.0.1"
     description = "A Python interface for QuEST."
     readme = "./README.md"
+    license = {file = "./LICENCE.txt"}
     authors = [
         {name = "Richard Meister", email = "richardm.tug@gmail.com"},
     ]
@@ -20,6 +21,7 @@
         "Environment :: Console",
         "Environment :: GPU :: NVIDIA CUDA",
         "Intended Audience :: Science/Research",
+        "License :: OSI Approved :: MIT License",
         "Natural Language :: English",
         "Operating System :: MacOS :: MacOS X",
         "Operating System :: Microsoft :: Windows",
