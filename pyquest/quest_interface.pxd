@@ -261,6 +261,7 @@ cdef extern from "QuEST.h":
     qreal calcTotalProb(Qureg qureg) except +
     Complex calcInnerProduct(Qureg bra, Qureg ket) except +
     qreal calcDensityInnerProduct(Qureg rho1, Qureg rho2) except +
+    qreal calcFidelity(Qureg qureg, Qureg pureState) except +
     Complex getAmp(Qureg qureg, long long int index) except +
     Complex getDensityAmp(Qureg qureg, long long int row, long long int col) except +
     void setAmps(Qureg qureg, long long int startInd,

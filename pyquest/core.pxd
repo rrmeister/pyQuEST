@@ -35,6 +35,7 @@ cdef class Register:
     cpdef apply_circuit(self, Circuit circ)
     cpdef apply_operator(self, BaseOperator op)
     cpdef qcomp inner_product(self, Register other)
+    cpdef qreal fidelity(self, Register other)
     cpdef Register copy(self)
     cpdef void copy_to(self, Register other)
     cpdef void copy_from(self, Register other)

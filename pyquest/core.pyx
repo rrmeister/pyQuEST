@@ -638,6 +638,16 @@ cdef class Register:
             prod = quest.calcInnerProduct(self.c_register, other.c_register)
             return prod.real + 1j * prod.imag
 
+    cpdef qreal fidelity(self, Register other):
+        """Calculate fidelity with the pure state in another register.
+
+        Raises:
+            QuESTError: If other register is not a state vector.
+        """
+        self._apply_delayed_operations()
+        other._apply_delayed_operations()
+        return quest.calcFidelity(self.c_register, other.c_register)
+
     cpdef apply_circuit(self, Circuit circ):
         """Apply a ``Circuit`` to the stored state.
 
