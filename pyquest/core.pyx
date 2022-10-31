@@ -208,6 +208,7 @@ cdef class Register:
                 self.c_register = quest.createQureg(
                     num_qubits, (<QuESTEnvironment>pyquest.env).c_env)
         else:
+            copy_reg._apply_delayed_operations()
             self.c_register = quest.createCloneQureg(
                 copy_reg.c_register, (<QuESTEnvironment>pyquest.env).c_env)
         logger.info("Created quantum register at " + hex(id(self)))
@@ -586,7 +587,6 @@ cdef class Register:
 
     cpdef Register copy(self):
         """Return a new ``Register`` with a copy of the state."""
-        self._apply_delayed_operations()
         return Register(copy_reg=self)
 
     cpdef void copy_to(self, Register other):
