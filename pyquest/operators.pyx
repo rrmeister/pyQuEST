@@ -315,6 +315,18 @@ cdef class MatrixOperator(MultiQubitOperator):
             res += ",\n    controls=" + str(self.controls)
         return res + ")"
 
+    @property
+    def matrix(self):
+        cdef long long mat_dim = 1LL << self._num_targets
+        cdef long long k, m
+        cdef qcomp[:, :] mat = np.ndarray(
+            (mat_dim, mat_dim), dtype=pyquest.core.np_qcomp)
+        for k in range(mat_dim):
+            for m in range(mat_dim):
+                mat[k, m].real = self._real[k][m]
+                mat[k, m].imag = self._imag[k][m]
+        return mat.base
+
     cdef int apply_to(self, Qureg c_register) except -1:
         if self._num_controls == 0:
             if self._num_targets == 1:
