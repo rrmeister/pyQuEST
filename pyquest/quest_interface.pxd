@@ -162,6 +162,8 @@ cdef extern from "QuEST.h":
                        qreal* termCoeffs, int numSumTerms, Qureg outQureg) except +
     void applyTrotterCircuit(Qureg qureg, PauliHamil hamil, qreal time,
                              int order, int reps) except +
+    void applyQFT(Qureg qureg, int* qubits, int numQubits) except +
+    void applyFullQFT(Qureg qureg) except +
 
     # Gates (measurements)
     qreal collapseToOutcome(Qureg qureg, int measureQubit,
@@ -281,6 +283,8 @@ cdef enum OP_TYPES:
     OP_PAULI_PRODUCT
     OP_PAULI_SUM
     OP_TROTTER_CIRC
+    OP_QFT
+    OP_FULL_QFT
     OP_MEASURE
     OP_PAULI_X
     OP_PAULI_Y

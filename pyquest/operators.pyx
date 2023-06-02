@@ -948,3 +948,21 @@ cdef class PhaseFunc(GlobalOperator):
                 self._num_regs, self._bit_encoding, self._phase_func_type,
                 self._parameters, self._num_parameters, self._override_inds,
                 self._override_phases, self._num_overrides)
+
+
+cdef class QFT(MultiQubitOperator):
+
+    def __cinit__(self, targets=None, target=None):
+        self.TYPE = OP_TYPES.OP_QFT
+
+    cdef int apply_to(self, Qureg c_register) except -1:
+        quest.applyQFT(c_register, self._targets, self._num_targets)
+
+
+cdef class FullQFT(GlobalOperator):
+
+    def __cinit__(self):
+        self.TYPE = OP_TYPES.OP_FULL_QFT
+
+    cdef int apply_to(self, Qureg c_register) except -1:
+        quest.applyFullQFT(c_register)
