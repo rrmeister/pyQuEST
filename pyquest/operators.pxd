@@ -88,3 +88,11 @@ cdef class PhaseFunc(GlobalOperator):
     cdef int *_num_terms_per_reg
     cdef qreal *_coeffs
     cdef qreal *_exponents
+
+
+cdef class QFT(MultiQubitOperator):
+    pass
+
+
+cdef class FullQFT(GlobalOperator):
+    pass
