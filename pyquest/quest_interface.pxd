@@ -164,6 +164,8 @@ cdef extern from "QuEST.h":
                              int order, int reps) except +
     void applyQFT(Qureg qureg, int* qubits, int numQubits) except +
     void applyFullQFT(Qureg qureg) except +
+    void applyRangeQFT_FFTW(Qureg qureg, int startQubit, int endQubit) except +
+    void applyRangeIQFT_FFTW(Qureg qureg, int startQubit, int endQubit) except +
 
     # Gates (measurements)
     qreal collapseToOutcome(Qureg qureg, int measureQubit,
