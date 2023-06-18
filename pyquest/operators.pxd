@@ -96,3 +96,12 @@ cdef class QFT(MultiQubitOperator):
 
 cdef class FullQFT(GlobalOperator):
     pass
+
+
+cdef class RangeQFT(MultiQubitOperator):
+    cdef int _start_qb
+    cdef int _end_qb
+
+cdef class RangeIQFT(MultiQubitOperator):
+    cdef int _start_qb
+    cdef int _end_qb

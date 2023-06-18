@@ -977,3 +977,43 @@ cdef class FullQFT(GlobalOperator):
 
     cdef int apply_to(self, Qureg c_register) except -1:
         quest.applyFullQFT(c_register)
+
+
+cdef class RangeQFT(MultiQubitOperator):
+
+    def __cinit__(self, targets=None, target=None):
+        self.TYPE = OP_TYPES.OP_QFT
+        # Check that targets form a continuous increasing range
+        cdef int k
+        for k in range(1, self._num_targets):
+            if self._targets[k] != self._targets[k - 1] + 1:
+                raise ValueError("Targets must form a continuous range for RangeQFT")
+        self._start_qb = self._targets[0]
+        self._end_qb = self._targets[self._num_targets - 1]
+
+    @property
+    def inverse(self):
+        return RangeIQFT(self.targets)
+
+    cdef int apply_to(self, Qureg c_register) except -1:
+        quest.applyRangeQFT_FFTW(c_register, self._start_qb, self._end_qb)
+
+
+cdef class RangeIQFT(MultiQubitOperator):
+
+    def __cinit__(self, targets=None, target=None):
+        self.TYPE = OP_TYPES.OP_QFT
+        # Check that targets form a continuous increasing range
+        cdef int k
+        for k in range(1, self._num_targets):
+            if self._targets[k] != self._targets[k - 1] + 1:
+                raise ValueError("Targets must form a continuous range for RangeQFT")
+        self._start_qb = self._targets[0]
+        self._end_qb = self._targets[self._num_targets - 1]
+
+    @property
+    def inverse(self):
+        return RangeQFT(self.targets)
+
+    cdef int apply_to(self, Qureg c_register) except -1:
+        quest.applyRangeIQFT_FFTW(c_register, self._start_qb, self._end_qb)
