@@ -1,4 +1,4 @@
 [submodule "QuEST"]
     path = QuEST
-    url = https://github.com/QuEST-Kit/QuEST
-    branch = develop
+    url = https://github.com/rrmeister/QuEST
+    branch = fftw3-qft
