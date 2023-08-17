@@ -1,5 +1,5 @@
 [build-system]
-    requires = ['setuptools', 'wheel', 'toml', 'scikit-build', 'cmake>=3.13', 'cython', 'numpy>=1.20']
+    requires = ['setuptools', 'wheel', 'toml', 'scikit-build', 'cmake>=3.13', 'cython==0.29.36', 'numpy>=1.20']
     build-backend = 'setuptools.build_meta'  # Should be switched to skbuild-backend as soon as available.
 
 # This is not yet used by any backend tool, but we comply with PEP 621 and PEP 631 anyway. For now,
