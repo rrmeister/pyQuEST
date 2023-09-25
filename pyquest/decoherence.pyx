@@ -30,6 +30,10 @@ cdef class Depolarising(MultiQubitOperator):
             raise ValueError("Depolarising noise must act on 1 or 2 qubits.")
         self._prob = prob
 
+    @property
+    def prob(self):
+        return self._prob
+
     cdef int apply_to(self, Qureg c_register) except -1:
         if self._num_targets == 1:
             quest.mixDepolarising(c_register, self._targets[0], self._prob)
