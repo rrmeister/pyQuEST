@@ -41,6 +41,9 @@ cdef class Depolarising(MultiQubitOperator):
             quest.mixTwoQubitDepolarising(
                 c_register, self._targets[0], self._targets[1], self._prob)
 
+    def __repr__(self):
+        return type(self).__name__ + "(" + str(self.targets) + ", " + str(self._prob) + ")"
+
 
 cdef class KrausMap(MultiQubitOperator):
     def __cinit__(self, targets=None, operators=None, target=None):
