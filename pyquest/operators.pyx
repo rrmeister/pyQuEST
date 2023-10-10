@@ -308,7 +308,7 @@ cdef class MatrixOperator(MultiQubitOperator):
         for i in range(matrix_dim):
             res += "["
             for j in range(matrix_dim):
-                res += f'{self._real[i][j]:f}{self._imag[i][j]:+f}j, '
+                res += f'{self._real[i][j]:.15f}{self._imag[i][j]:+.15f}j, '
             res = res[:-2] + "],\n         "
         res = res[:-11] + "])"
         if self._num_controls > 0:
