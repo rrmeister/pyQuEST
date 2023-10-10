@@ -105,6 +105,9 @@ cdef class U(MatrixOperator):
                 + str(self.control_pattern)
                 + ')')
 
+    def __reduce__(self):
+        return (U, (self.targets, self.matrix, self.controls, None, self.control_pattern))
+
     @property
     def control_pattern(self):
         cdef int k

@@ -262,7 +262,7 @@ cdef class MultiQubitOperator(ControlledOperator):
 cdef class MatrixOperator(MultiQubitOperator):
 
     def __cinit__(self, targets=None, matrix=None, controls=None, target=None,
-                  **kwargs):
+                  *args, **kwargs):
         self.TYPE = OP_TYPES.OP_MATRIX
         if matrix is None:
             raise TypeError("Matrix representation must be given.")
@@ -314,6 +314,17 @@ cdef class MatrixOperator(MultiQubitOperator):
         if self._num_controls > 0:
             res += ",\n    controls=" + str(self.controls)
         return res + ")"
+
+    @property
+    def matrix(self):
+        cdef size_t mat_dim = 2**self._num_targets
+        cdef size_t k, n
+        cdef qcomp[:, :] np_mat = np.ndarray(
+                (mat_dim, mat_dim), dtype=pyquest.core.np_qcomp)
+        for k in range(mat_dim):
+            for n in range(mat_dim):
+                np_mat[k, n] = self._real[k][n] + 1j * self._imag[k][n]
+        return np_mat.base
 
     cdef int apply_to(self, Qureg c_register) except -1:
         if self._num_controls == 0:
