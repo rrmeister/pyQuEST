@@ -26,6 +26,7 @@ import numpy as np
 
 import pyquest  # The package holds our unique QuESTEnvironment
 from pyquest.quest_error import QuESTError
+from pyquest.drawer import draw_circuit
 
 logger = logging.getLogger(__name__)
 
@@ -983,3 +984,6 @@ cdef class Circuit(GlobalOperator):
         cdef size_t k
         for k in range(self.c_operations.size()):
             (<BaseOperator>self.c_operations[k]).apply_to(c_register)
+
+    def draw(self, filename=None, theme="bw", reverse_bits=False):
+        draw_circuit(self, filename, theme, reverse_bits)
