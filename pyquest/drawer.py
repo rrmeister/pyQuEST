@@ -62,12 +62,6 @@ from pyquest.decoherence import *
 from pyquest.initialisations import *
 
 
-"""
-TODO:
-    - type hints + docstrings
-"""
-
-
 # visual order of graphic constituents (lower is occluded)
 class layer:
 
@@ -148,6 +142,10 @@ class Colors:
 
 
     def __init__(self, theme="bw"):
+
+        if theme not in ["bw", "dark", "qmt"]:
+            raise ValueError(f"Invalid theme: {theme}. Choose from 'bw', 'dark', or 'qmt'.")
+
         self.theme = theme
         self.colors = self.themes.get(theme, self.themes["bw"])
 
@@ -335,6 +333,9 @@ def get_circuit_columns(gates):
 Visual gate styling
     - in matplotlib 3.8+, colours can be in a tuple with an alpha value,
       e.g. ('green', 0.3). We don't make use of this below
+    - when the 'reverse_bits' flag = True, non-symmetric symbols (like
+      measure) are drawn upside down, so that thet are the correct way up
+      after flipping the y-axis
 """
 
 
@@ -384,18 +385,21 @@ def get_gate_label(gate):
     return type(gate).__name__
 
 
-def get_measure_symbol(gate, rect):
+def get_measure_symbol(rect):
 
-    # calculate the center, height, and width of the rectangle
+    # calculate the center and width of the rectangle
     x, y = (mean(x[i] for x in rect) for i in [0, 1])
-    h, w = ((rect[2][i] - rect[0][i]) / len(gate.targets) for i in [0, 1])
+    w = rect[2][0] - rect[0][0]
+
+    # arc and line start below middle of the rectangle
+    y0 = y + 0.15 * w if reverse_bits_glob else y - 0.15 * w
 
     # create the arc object
     arc = patches.Arc(
-        xy=(x, y - 0.15 * h),
+        xy=(x, y0),
         width=w * 0.7,
         height=w * 0.7,
-        angle=0,
+        angle=180 if reverse_bits_glob else 0,
         theta1=0,
         theta2=180,
         fill=False,
@@ -405,13 +409,13 @@ def get_measure_symbol(gate, rect):
     )
 
     # create the line object
-    y_0 = y - 0.15 * h
     line = mlines.Line2D(
         [x, x + 0.35 * w],
-        [y_0, y_0 + 0.35 * w],
+        [y0, y0 - 0.35 * w if reverse_bits_glob else y0 + 0.35 * w],
         color=colors.get_label_color(),
         zorder=layer.GATE_BODY,
     )
+
 
     # Return both objects as a tuple
     return arc, line
@@ -439,6 +443,7 @@ Logic for producing graphics, which...
     - labels gates with concise strings
     - merges gate bodies which target adjacent qubits
     - draws target bullseye for CX and CXX
+    - draws bespoke measurement symbol
 """
 
 
@@ -541,7 +546,7 @@ def draw_gate_body(gate, column, rectangles, plt, ax):
 
         # measurement gate has a bespoke graphic
         if isinstance(gate, M):
-            arc, line = get_measure_symbol(gate, rect)
+            arc, line = get_measure_symbol(rect)
             ax.add_patch(arc)
             ax.add_line(line)
 
@@ -605,7 +610,7 @@ def draw_gate(gate, column, num_qubits, plt, ax):
     draw_gate_body(gate, column, rectangles, plt, ax)
 
 
-def draw_circuit(gates, theme="bw", filename=None):
+def draw_circuit(gates, filename=None, theme="bw", reverse_bits=False):
 
     # determine circuit layout
     gate_columns = get_circuit_columns(gates)
@@ -617,9 +622,11 @@ def draw_circuit(gates, theme="bw", filename=None):
     mpl_figure.set_size_inches(num_columns, num_qubits)
     ax = plt.gca()
 
-    # set global color theme
+    # set global color theme and bit ordering
     global colors
     colors = Colors(theme)
+    global reverse_bits_glob
+    reverse_bits_glob = reverse_bits
 
     # Set the background color
     mpl_figure.patch.set_facecolor(colors.get_fig_color())
@@ -642,6 +649,11 @@ def draw_circuit(gates, theme="bw", filename=None):
     pad = size.PLOT_PADDING
     ax.set_xlim(-0.5 - pad, num_columns + pad + 0.5)
     ax.set_ylim(-0.5 - pad, num_qubits + pad + 0.5)
+
+    # all y-coords are negative for reverse bit ordering
+    if reverse_bits:
+        ax.invert_yaxis()
+
     # hide frame
     ax.axis("off")
 
