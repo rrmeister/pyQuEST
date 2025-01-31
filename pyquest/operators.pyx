@@ -266,7 +266,8 @@ cdef class MatrixOperator(MultiQubitOperator):
         self.TYPE = OP_TYPES.OP_MATRIX
         if matrix is None:
             raise TypeError("Matrix representation must be given.")
-        cdef size_t matrix_dim = 2 ** self._num_targets
+        cdef size_t matrix_dim = 1  # Assigning a 1 first prevents integer overflows of the bit shift
+        matrix_dim = matrix_dim << self._num_targets
         if isinstance(matrix, np.ndarray):
             if matrix.ndim != 2:
                 raise ValueError("Array must have exactly 2 dimensions.")
@@ -302,7 +303,8 @@ cdef class MatrixOperator(MultiQubitOperator):
     def __repr__(self):
         res = type(self).__name__ + "(\n    " + str(self.targets) + ","
 
-        cdef size_t matrix_dim = 2 ** self._num_targets
+        cdef size_t matrix_dim = 1  # Assigning a 1 first prevents integer overflows of the bit shift
+        matrix_dim = matrix_dim << self._num_targets
         cdef size_t i, j
         res += "\n    array(\n        ["
         for i in range(matrix_dim):
@@ -317,7 +319,8 @@ cdef class MatrixOperator(MultiQubitOperator):
 
     @property
     def matrix(self):
-        cdef size_t mat_dim = 2**self._num_targets
+        cdef size_t mat_dim = 1
+        mat_dim = mat_dim << self._num_targets
         cdef size_t k, n
         cdef qcomp[:, :] np_mat = np.ndarray(
                 (mat_dim, mat_dim), dtype=pyquest.core.np_qcomp)
@@ -346,7 +349,8 @@ cdef class MatrixOperator(MultiQubitOperator):
                 self._num_targets, (<ComplexMatrixN*>self._matrix)[0])
 
     cdef _create_array_property(self):
-        cdef size_t matrix_dim = 2 ** self._num_targets
+        cdef size_t matrix_dim = 1  # Assigning a 1 first prevents integer overflows of the bit shift
+        matrix_dim = matrix_dim << self._num_targets
         cdef size_t k
         # The only cases where core QuEST supports ComplexMatrix2
         # or ComplexMatrix4 for generic matrices are non-controlled
