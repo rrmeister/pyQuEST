@@ -119,7 +119,8 @@ cdef class U(MatrixOperator):
         # We need to override this method, because core QuEST
         # supports ComplexMatrix* with controls for unitaries, but
         # not for generic matrices.
-        cdef size_t matrix_dim = 2 ** self._num_targets
+        cdef size_t matrix_dim = 1  # Assigning a 1 first prevents integer overflows of the bit shift
+        matrix_dim = matrix_dim << self._num_targets
         cdef size_t k
         if self._num_targets == 1:
             self._matrix = malloc(sizeof(ComplexMatrix2))
