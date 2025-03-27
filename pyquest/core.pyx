@@ -578,8 +578,8 @@ cdef class Register:
                 The returned array has a size of ``2**len(qubits)``.
         """
         self._apply_delayed_operations()
-        cdef int[:] arr_qubits = np.array(qubits, dtype=np.intc,
-                                          order='C', copy=False).ravel()
+        cdef int[:] arr_qubits = np.asarray(qubits, dtype=np.intc,
+                                            order='C').ravel()
         cdef int num_qubits = arr_qubits.size
         cdef qreal[:] outcome_probs = np.ndarray(1 << num_qubits,
                                                  dtype=np_qreal)
