@@ -54,6 +54,7 @@ foreach(cy_target ${CY_TARGETS})
     unset(CMAKE_MESSAGE_LOG_LEVEL)
     target_include_directories(${cy_target} PUBLIC ${NumPy_INCLUDE_DIRS})
     target_link_libraries(${cy_target} QuEST quest_error.h)
+    target_link_libraries(${cy_target} QuEST m)
 
     # Cython <3.0 uses an old numpy API which causes numpy to raise a warning.
     # We can't do anything about the API version, so we just silence that warning
