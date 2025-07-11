@@ -14,4 +14,4 @@ install:
 	$(PY) setup.py install
 
 clean:
-	rm -rf _skbuild .eggs
+	rm -rf _skbuild .eggs dist *.whl
