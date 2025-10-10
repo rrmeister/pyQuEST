@@ -9,7 +9,7 @@ set(CYTHON_FLAGS "-X binding=True -X embedsignature=True" CACHE STRING
 # always appended to the user-specified CYTHON_FLAGS if not present. The PRECISION
 # cache variable is set in QuEST.
 if(NOT CYTHON_FLAGS MATCHES "QuEST_PREC")
-  string(APPEND CYTHON_FLAGS " -E QuEST_PREC=${PRECISION}")
+    string(APPEND CYTHON_FLAGS " -E QuEST_PREC=${FLOAT_PRECISION}")
 endif()
 
 set(CYTHON_ANNOTATE True CACHE BOOL

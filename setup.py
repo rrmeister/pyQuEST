@@ -218,12 +218,12 @@ def quest_config_to_cmake_args(quest_config):
     argument `cmake_args` to build QuEST with the chosen configuration.
     """
     quest_cmake_args = [
-        "-DPRECISION:STRING=" + str(quest_config['precision']),
-        "-DMULTITHREADED:BOOL=" + ("ON" if quest_config['multithreaded']
+        "-DFLOAT_PRECISION:STRING=" + str(quest_config['precision']),
+        "-DENABLE_MULTITHREADING:BOOL=" + ("ON" if quest_config['multithreaded']
                                    else "OFF"),
-        "-DDISTRIBUTED:BOOL=" + ("ON" if quest_config['distributed']
+        "-DENABLE_DISTRIBUTION:BOOL=" + ("ON" if quest_config['distributed']
                                  else "OFF"),
-        "-DGPUACCELERATED:BOOL=" + ("ON" if quest_config['gpu_accelerated']
+        "-DENABLE_CUDA:BOOL=" + ("ON" if quest_config['gpu_accelerated']
                                     else "OFF")]
     if quest_config['gpu_accelerated']:
         quest_cmake_args.append(
