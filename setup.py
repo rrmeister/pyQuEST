@@ -8,7 +8,7 @@ from skbuild import setup
 quest_config = {
     'precision': 2,            # Size of a float; 1 (single),
                                # 2 (double), or 4 (quad precision).
-    'multithreaded': True,     # Enable multithreading via OpenMP.
+    'multithreaded': False,    # Enable multithreading via OpenMP.
     'distributed': False,      # Enable distributed code via MPI.
     'gpu_accelerated': False,  # Enable Nvidia GPU support via CUDA.
     # CUDA needs to know the compute capability of your GPU. Find your
