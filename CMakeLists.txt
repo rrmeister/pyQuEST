@@ -16,7 +16,7 @@ message(STATUS "CMake build type: ${CMAKE_BUILD_TYPE}")
 # building a shared lib regardless of the cache variable.
 set(BUILD_SHARED_LIBS TRUE)
 # Build the QuEST library.
-add_subdirectory(QuEST/QuEST)
+add_subdirectory(QuEST)
 # To get proper exception/error handling, we must override `invalidQuESTInputError()`
 # in QuEST, which we can do by adding `pyquest/quest_exception.c` to its sources.
 target_include_directories(QuEST PRIVATE ${CMAKE_SOURCE_DIR}/pyquest)
