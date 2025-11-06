@@ -77,23 +77,19 @@ cdef class BaseOperator:
             except NotImplementedError:
                 raise ValueError(
                     "Number of qubits must be given for this operator.")
-        cdef QuESTEnv *env_ptr = <QuESTEnv*>PyCapsule_GetPointer(
-            pyquest.env.env_capsule, NULL)
-        cdef Qureg tmp_reg = quest.createQureg(
-            num_qubits, env_ptr[0])
+        cdef Qureg tmp_reg = quest.createQureg(num_qubits)
         cdef long long k, m
         cdef long long mat_dim = 1LL << num_qubits
-        cdef Complex amp
+        cdef qcomp amp
         cdef qcomp[:, :] res_mat = np.ndarray(
             (mat_dim, mat_dim), dtype=pyquest.core.np_qcomp)
         for k in range(mat_dim):
             quest.initClassicalState(tmp_reg, k)
             self.apply_to(tmp_reg)
             for m in range(mat_dim):
-                amp = quest.getAmp(tmp_reg, m)
-                res_mat[m, k].real = amp.real
-                res_mat[m, k].imag = amp.imag
-        quest.destroyQureg(tmp_reg, env_ptr[0])
+                amp = quest.getQuregAmp(tmp_reg, m)
+                res_mat[m, k] = amp
+        quest.destroyQureg(tmp_reg)
         return res_mat.base
 
     cdef int apply_to(self, Qureg c_register) except -1:
@@ -291,13 +287,7 @@ cdef class MatrixOperator(MultiQubitOperator):
         # _matrix attribute, so they are freed togehter with _matrix.
         if self._num_targets > 2 or self._num_controls > 0:
             if self._matrix != NULL:
-                destroyComplexMatrixN((<ComplexMatrixN*>self._matrix)[0])
-        else:
-            # The arrays of the row-pointers for 1 and 2 qubits
-            # are allocated manually, because the arrays themselves
-            # are in the _matrix variable.
-            free(self._real)
-            free(self._imag)
+                quest.destroyCompMatr((<quest.CompMatr*>self._matrix)[0])
         free(self._matrix)
 
     def __repr__(self):
@@ -306,11 +296,15 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t matrix_dim = 1  # Assigning a 1 first prevents integer overflows of the bit shift
         matrix_dim = matrix_dim << self._num_targets
         cdef size_t i, j
+        cdef qcomp element
         res += "\n    array(\n        ["
         for i in range(matrix_dim):
             res += "["
             for j in range(matrix_dim):
-                res += f'{self._real[i][j]:.15f}{self._imag[i][j]:+.15f}j, '
+                element = self._get_matrix_element(i, j)
+                # Convert qcomp to Python complex for formatting
+                py_complex = <object>element
+                res += f'{py_complex.real:.15f}{py_complex.imag:+.15f}j, '
             res = res[:-2] + "],\n         "
         res = res[:-11] + "])"
         if self._num_controls > 0:
@@ -322,58 +316,64 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t mat_dim = 1
         mat_dim = mat_dim << self._num_targets
         cdef size_t k, n
+        cdef qcomp element
         cdef qcomp[:, :] np_mat = np.ndarray(
                 (mat_dim, mat_dim), dtype=pyquest.core.np_qcomp)
         for k in range(mat_dim):
             for n in range(mat_dim):
-                np_mat[k, n] = self._real[k][n] + 1j * self._imag[k][n]
+                element = self._get_matrix_element(k, n)
+                np_mat[k, n] = element
         return np_mat.base
 
     cdef int apply_to(self, Qureg c_register) except -1:
         if self._num_controls == 0:
             if self._num_targets == 1:
-                quest.applyMatrix2(
+                quest.leftapplyCompMatr1(
                     c_register, self._targets[0],
-                    (<ComplexMatrix2*>self._matrix)[0])
+                    (<quest.CompMatr1*>self._matrix)[0])
             elif self._num_targets == 2:
-                quest.applyMatrix4(
+                quest.leftapplyCompMatr2(
                     c_register, self._targets[0], self._targets[1],
-                    (<ComplexMatrix4*>self._matrix)[0])
+                    (<quest.CompMatr2*>self._matrix)[0])
             else:
-                quest.applyMatrixN(
+                quest.leftapplyCompMatr(
                     c_register, self._targets, self._num_targets,
-                    (<ComplexMatrixN*>self._matrix)[0])
+                    (<quest.CompMatr*>self._matrix)[0])
         else:
-            quest.applyMultiControlledMatrixN(
+            quest.applyMultiControlledCompMatr(
                 c_register, self._controls, self._num_controls, self._targets,
-                self._num_targets, (<ComplexMatrixN*>self._matrix)[0])
+                self._num_targets, (<quest.CompMatr*>self._matrix)[0])
 
     cdef _create_array_property(self):
         cdef size_t matrix_dim = 1  # Assigning a 1 first prevents integer overflows of the bit shift
         matrix_dim = matrix_dim << self._num_targets
-        cdef size_t k
-        # The only cases where core QuEST supports ComplexMatrix2
-        # or ComplexMatrix4 for generic matrices are non-controlled
-        # cases.
+        # The only cases where core QuEST supports CompMatr1/CompMatr2
+        # for generic matrices are non-controlled cases.
         if self._num_targets == 1 and self._num_controls == 0:
-            self._matrix = malloc(sizeof(ComplexMatrix2))
-            self._real = <qreal**>malloc(matrix_dim * sizeof(self._real[0]))
-            self._imag = <qreal**>malloc(matrix_dim * sizeof(self._imag[0]))
-            for k in range(matrix_dim):
-                self._real[k] = (<ComplexMatrix2*>self._matrix).real[k]
-                self._imag[k] = (<ComplexMatrix2*>self._matrix).imag[k]
+            self._matrix = malloc(sizeof(quest.CompMatr1))
         elif self._num_targets == 2 and self._num_controls == 0:
-            self._matrix = malloc(sizeof(ComplexMatrix4))
-            self._real = <qreal**>malloc(matrix_dim * sizeof(self._real[0]))
-            self._imag = <qreal**>malloc(matrix_dim * sizeof(self._imag[0]))
-            for k in range(matrix_dim):
-                self._real[k] = (<ComplexMatrix4*>self._matrix).real[k]
-                self._imag[k] = (<ComplexMatrix4*>self._matrix).imag[k]
+            self._matrix = malloc(sizeof(quest.CompMatr2))
         else:
-            self._matrix = malloc(sizeof(ComplexMatrixN))
-            (<ComplexMatrixN*>self._matrix)[0] = createComplexMatrixN(self._num_targets)
-            self._real = (<ComplexMatrixN*>self._matrix).real
-            self._imag = (<ComplexMatrixN*>self._matrix).imag
+            self._matrix = malloc(sizeof(quest.CompMatr))
+            (<quest.CompMatr*>self._matrix)[0] = quest.createCompMatr(self._num_targets)
+
+    cdef qcomp _get_matrix_element(self, size_t k, size_t n):
+        # Get matrix element accounting for different matrix types.
+        if self._num_targets == 1:
+            return (<quest.CompMatr1*>self._matrix).elems[k][n]
+        elif self._num_targets == 2:
+            return (<quest.CompMatr2*>self._matrix).elems[k][n]
+        else:
+            return (<quest.CompMatr*>self._matrix).cpuElems[k][n]
+
+    cdef void _set_matrix_element(self, size_t k, size_t n, qcomp val):
+        # Set matrix element accounting for different matrix types.
+        if self._num_targets == 1:
+            (<quest.CompMatr1*>self._matrix).elems[k][n] = val
+        elif self._num_targets == 2:
+            (<quest.CompMatr2*>self._matrix).elems[k][n] = val
+        else:
+            (<quest.CompMatr*>self._matrix).cpuElems[k][n] = val
 
     cdef _numpy_array_to_matrix_attribute(self, np.ndarray arr):
         # For typed memoryviews we need to call different methods
@@ -401,8 +401,7 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t k, m
         for k in range(arr.shape[0]):
             for m in range(arr.shape[1]):
-                self._real[k][m] = arr[k, m].real
-                self._imag[k][m] = arr[k, m].imag
+                self._set_matrix_element(k, m, <qcomp>(arr[k, m].real + 1j * arr[k, m].imag))
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -410,8 +409,7 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t k, m
         for k in range(arr.shape[0]):
             for m in range(arr.shape[1]):
-                self._real[k][m] = arr[k, m]
-                self._imag[k][m] = 0.
+                self._set_matrix_element(k, m, <qcomp>(arr[k, m] + 0j))
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -419,8 +417,7 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t k, m
         for k in range(arr.shape[0]):
             for m in range(arr.shape[1]):
-                self._real[k][m] = arr[k, m]
-                self._imag[k][m] = 0.
+                self._set_matrix_element(k, m, <qcomp>(arr[k, m] + 0j))
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -428,8 +425,7 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t k, m
         for k in range(arr.shape[0]):
             for m in range(arr.shape[1]):
-                self._real[k][m] = arr[k, m]
-                self._imag[k][m] = 0.
+                self._set_matrix_element(k, m, <qcomp>(arr[k, m] + 0j))
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -437,8 +433,7 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t k, m
         for k in range(arr.shape[0]):
             for m in range(arr.shape[1]):
-                self._real[k][m] = arr[k, m].real
-                self._imag[k][m] = arr[k, m].imag
+                self._set_matrix_element(k, m, <qcomp>(arr[k, m].real + 1j * arr[k, m].imag))
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -446,8 +441,7 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t k, m
         for k in range(arr.shape[0]):
             for m in range(arr.shape[1]):
-                self._real[k][m] = arr[k, m].real
-                self._imag[k][m] = arr[k, m].imag
+                self._set_matrix_element(k, m, <qcomp>(arr[k, m].real + 1j * arr[k, m].imag))
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -455,8 +449,7 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t k, m
         for k in range(arr.shape[0]):
             for m in range(arr.shape[1]):
-                self._real[k][m] = arr[k, m].real
-                self._imag[k][m] = arr[k, m].imag
+                self._set_matrix_element(k, m, <qcomp>(arr[k, m].real + 1j * arr[k, m].imag))
 
 
 cdef class PauliSum(GlobalOperator):
@@ -475,11 +468,10 @@ cdef class TrotterCircuit(GlobalOperator):
 cdef class DiagonalOperator(GlobalOperator):
 
     def __cinit__(self, num_qubits, diag_elements=None):
-        cdef QuESTEnv *env_ptr = <QuESTEnv*>PyCapsule_GetPointer(
-            pyquest.env.env_capsule, NULL)
-        cdef qreal[:] real_el, imag_el
+        cdef qcomp[:] qcomp_el
+        cdef qindex num_elems
         self.TYPE = OP_TYPES.OP_DIAGONAL
-        self._diag_op = quest.createDiagonalOp(num_qubits, env_ptr[0])
+        self._diag_op = quest.createFullStateDiagMatr(num_qubits)
         if diag_elements is not None:
             # We'll try to handle anything that can be an ndarray by
             # just giving it to the np.array constructor.
@@ -492,22 +484,13 @@ cdef class DiagonalOperator(GlobalOperator):
             if diag_elements.size != 1 << self._diag_op.numQubits:
                 raise ValueError("'diag_elements' must have length of "
                                  "2**num_qubits")
-            # FIXME This possibly creates copies of real and imaginary
-            #       parts (QuEST requires contiguous arrays for real and
-            #       imag separately), so doing it in chunks or write
-            #       straight to memory would be better.
-            real_el = np.require(
-                diag_elements.real, dtype=pyquest.core.np_qreal,
-                requirements='CW')
-            imag_el = np.require(
-                diag_elements.imag, dtype=pyquest.core.np_qreal,
-                requirements='CW')
-            quest.initDiagonalOp(self._diag_op, &real_el[0], &imag_el[0])
+            # Convert Python complex array to qcomp array
+            num_elems = diag_elements.size
+            qcomp_el = np.ascontiguousarray(diag_elements, dtype=np.complex128)
+            quest.setFullStateDiagMatr(self._diag_op, 0, &qcomp_el[0], num_elems)
 
     def __dealloc__(self):
-        cdef QuESTEnv *env_ptr = <QuESTEnv*>PyCapsule_GetPointer(
-            pyquest.env.env_capsule, NULL)
-        quest.destroyDiagonalOp(self._diag_op, env_ptr[0])
+        quest.destroyFullStateDiagMatr(self._diag_op)
 
     def __repr__(self):
         return ("<" + type(self).__name__ + " on "
@@ -515,34 +498,34 @@ cdef class DiagonalOperator(GlobalOperator):
                 + hex(id(self)) + ">")
 
     cdef int apply_to(self, Qureg c_register) except -1:
-        quest.applyDiagonalOp(c_register, self._diag_op)
+        quest.leftapplyFullStateDiagMatr(c_register, self._diag_op)
 
 
 class _BitEncoding(enum.IntEnum):
-    UNSIGNED = quest.bitEncoding.UNSIGNED
-    TWOS_COMPLEMENT = quest.bitEncoding.TWOS_COMPLEMENT
+    UNSIGNED = 0              # Standard unsigned binary interpretation
+    TWOS_COMPLEMENT = 1       # Two's complement signed interpretation
 
 
 class _PhaseFuncType(enum.IntEnum):
-    # Careful when adding new functions to this enum, the PhaseFunc
-    # constructor, __repr__, and inverse rely on the "SCALED" and
-    # "INVERSE" naming conventions to determine the correct structure
-    # of parameters to pass to QuEST.
-    NORM = quest.phaseFunc.NORM
-    SCALED_NORM = quest.phaseFunc.SCALED_NORM
-    INVERSE_NORM = quest.phaseFunc.INVERSE_NORM
-    SCALED_INVERSE_NORM = quest.phaseFunc.SCALED_INVERSE_NORM
-    SCALED_INVERSE_SHIFTED_NORM = quest.phaseFunc.SCALED_INVERSE_SHIFTED_NORM
-    PRODUCT = quest.phaseFunc.PRODUCT
-    SCALED_PRODUCT = quest.phaseFunc.SCALED_PRODUCT
-    INVERSE_PRODUCT = quest.phaseFunc.INVERSE_PRODUCT
-    SCALED_INVERSE_PRODUCT = quest.phaseFunc.SCALED_INVERSE_PRODUCT
-    DISTANCE = quest.phaseFunc.DISTANCE
-    SCALED_DISTANCE = quest.phaseFunc.SCALED_DISTANCE
-    INVERSE_DISTANCE = quest.phaseFunc.INVERSE_DISTANCE
-    SCALED_INVERSE_DISTANCE = quest.phaseFunc.SCALED_INVERSE_DISTANCE
-    SCALED_INVERSE_SHIFTED_DISTANCE = quest.phaseFunc.SCALED_INVERSE_SHIFTED_DISTANCE
-    EXPONENTIAL_POLYNOMIAL = enum.auto()
+    # Phase function types available in QuEST v4.
+    # These are mapped to v4's function-based phase API via callbacks.
+    # The naming conventions for "SCALED", "INVERSE", and "SHIFTED" are used
+    # by PhaseFunc to determine parameter structures for QuEST calls.
+    NORM = 0
+    SCALED_NORM = 1
+    INVERSE_NORM = 2
+    SCALED_INVERSE_NORM = 3
+    SCALED_INVERSE_SHIFTED_NORM = 4
+    PRODUCT = 5
+    SCALED_PRODUCT = 6
+    INVERSE_PRODUCT = 7
+    SCALED_INVERSE_PRODUCT = 8
+    DISTANCE = 9
+    SCALED_DISTANCE = 10
+    INVERSE_DISTANCE = 11
+    SCALED_INVERSE_DISTANCE = 12
+    SCALED_INVERSE_SHIFTED_DISTANCE = 13
+    EXPONENTIAL_POLYNOMIAL = 14
 
 
 # Extension types do not allow nested classes, so they are defined as
@@ -552,6 +535,26 @@ class _PhaseFuncType(enum.IntEnum):
 # nicer and less confusing prints.
 _BitEncoding.__name__ = "BitEncoding"
 _PhaseFuncType.__name__ = "FuncType"
+
+
+# Global reference to current PhaseFunc instance for callback routing
+# This is needed because QuEST v4 uses bare C function pointers.
+cdef object _current_phase_func = None
+
+
+# Helper function to convert a real phase value to qcomp (exp(1.0j * phase))
+cdef qcomp _phase_to_qcomp(qreal phase_value):
+    return cos(phase_value) + 1.0j * sin(phase_value)
+
+
+# Module-level callback function invoked by QuEST for each basis state
+cdef qcomp _compute_phase_callback(qindex* indices):
+    # Callback function passed to QuEST v4's setFullStateDiagMatrFromMultiVarFunc.
+    global _current_phase_func
+    if _current_phase_func is None:
+        raise RuntimeError("PhaseFunc callback invoked with no active instance")
+    # Call the C-level compute method directly
+    return (<PhaseFunc>_current_phase_func)._compute_for_indices_c(indices)
 
 
 cdef class PhaseFunc(GlobalOperator):
@@ -941,28 +944,222 @@ cdef class PhaseFunc(GlobalOperator):
         constructor_args['shifts'] = self.shifts
         return PhaseFunc(**constructor_args)
 
-    cdef int apply_to(self, Qureg c_register) except -1:
-        pass
-        if self._is_poly:
-            if self._num_regs == 0:
-                quest.applyPhaseFuncOverrides(
-                    c_register, self._qubits_in_regs, self._num_qubits_per_reg[0],
-                    self._bit_encoding, self._coeffs, self._exponents,
-                    self._num_terms, self._override_inds,
-                    self._override_phases, self._num_overrides)
+    cdef qcomp _compute_for_indices_c(self, qindex* indices):
+        # Compute the phase value for a given set of basis state indices.
+        # This is called by QuEST v4 for each basis state when initializing
+        # the diagonal matrix. Routes to the appropriate phase function
+        # implementation based on self._phase_func_type.
+        cdef qreal phase_value = 0.0
+        cdef qreal norm_val, product_val, distance_val, shift_val
+        cdef int i, j, k
+        cdef qreal scaled_factor = 1.0
+        cdef qreal divergence_val = 0.0
+        
+        # Compute base phase value depending on function type
+        func_type = _PhaseFuncType(self._phase_func_type)
+        func_name = func_type.name
+        
+        if func_type == _PhaseFuncType.NORM:
+            # sqrt(sum of squared indices)
+            norm_val = 0.0
+            for i in range(self._num_regs):
+                norm_val += indices[i] * indices[i]
+            phase_value = sqrt(norm_val) if norm_val > 0 else 0.0
+        elif func_type == _PhaseFuncType.SCALED_NORM:
+            # Scaling * sqrt(sum of squared indices)
+            norm_val = 0.0
+            for i in range(self._num_regs):
+                norm_val += indices[i] * indices[i]
+            phase_value = sqrt(norm_val) if norm_val > 0 else 0.0
+        elif func_type == _PhaseFuncType.INVERSE_NORM:
+            # 1 / sqrt(sum of squared indices)
+            norm_val = 0.0
+            for i in range(self._num_regs):
+                norm_val += indices[i] * indices[i]
+            if norm_val > 0:
+                phase_value = 1.0 / sqrt(norm_val)
             else:
-                quest.applyMultiVarPhaseFuncOverrides(
-                    c_register, self._qubits_in_regs, self._num_qubits_per_reg,
-                    self._num_regs, self._bit_encoding, self._coeffs,
-                    self._exponents, self._num_terms_per_reg,
-                    self._override_inds, self._override_phases,
-                    self._num_overrides)
-        else:
-            quest.applyParamNamedPhaseFuncOverrides(
-                c_register, self._qubits_in_regs, self._num_qubits_per_reg,
-                self._num_regs, self._bit_encoding, self._phase_func_type,
-                self._parameters, self._num_parameters, self._override_inds,
-                self._override_phases, self._num_overrides)
+                phase_value = divergence_val
+        elif func_type == _PhaseFuncType.SCALED_INVERSE_NORM:
+            # Scaling / sqrt(sum of squared indices)
+            norm_val = 0.0
+            for i in range(self._num_regs):
+                norm_val += indices[i] * indices[i]
+            if norm_val > 0:
+                phase_value = 1.0 / sqrt(norm_val)
+            else:
+                phase_value = divergence_val
+        elif func_type == _PhaseFuncType.SCALED_INVERSE_SHIFTED_NORM:
+            # Scaling / sqrt(sum of (indices[i] - shift[i])^2)
+            norm_val = 0.0
+            for i in range(self._num_regs):
+                shift_val = self._parameters[2 + i] if i + 2 < self._num_parameters else 0.0
+                norm_val += (indices[i] - shift_val) ** 2
+            if norm_val > 0:
+                phase_value = 1.0 / sqrt(norm_val)
+            else:
+                phase_value = divergence_val
+        elif func_type == _PhaseFuncType.PRODUCT:
+            # Product of all indices
+            product_val = 1.0
+            for i in range(self._num_regs):
+                product_val *= indices[i]
+            phase_value = product_val
+        elif func_type == _PhaseFuncType.SCALED_PRODUCT:
+            # Scaling * product of indices
+            product_val = 1.0
+            for i in range(self._num_regs):
+                product_val *= indices[i]
+            phase_value = product_val
+        elif func_type == _PhaseFuncType.INVERSE_PRODUCT:
+            # 1 / product of indices
+            product_val = 1.0
+            for i in range(self._num_regs):
+                product_val *= indices[i]
+            if product_val != 0:
+                phase_value = 1.0 / product_val
+            else:
+                phase_value = divergence_val
+        elif func_type == _PhaseFuncType.SCALED_INVERSE_PRODUCT:
+            # Scaling / product of indices
+            product_val = 1.0
+            for i in range(self._num_regs):
+                product_val *= indices[i]
+            if product_val != 0:
+                phase_value = 1.0 / product_val
+            else:
+                phase_value = divergence_val
+        
+        elif func_type == _PhaseFuncType.DISTANCE:
+            # Distance between pairs of indices
+            if self._num_regs >= 2:
+                distance_val = 0.0
+                for i in range(self._num_regs - 1):
+                    distance_val += (indices[i] - indices[i + 1]) ** 2
+                phase_value = sqrt(distance_val) if distance_val > 0 else 0.0
+            else:
+                phase_value = 0.0
+        
+        elif func_type == _PhaseFuncType.SCALED_DISTANCE:
+            # Scaling * distance between indices
+            if self._num_regs >= 2:
+                distance_val = 0.0
+                for i in range(self._num_regs - 1):
+                    distance_val += (indices[i] - indices[i + 1]) ** 2
+                phase_value = sqrt(distance_val) if distance_val > 0 else 0.0
+            else:
+                phase_value = 0.0
+        elif func_type == _PhaseFuncType.INVERSE_DISTANCE:
+            # 1 / distance between indices
+            if self._num_regs >= 2:
+                distance_val = 0.0
+                for i in range(self._num_regs - 1):
+                    distance_val += (indices[i] - indices[i + 1]) ** 2
+                if distance_val > 0:
+                    phase_value = 1.0 / sqrt(distance_val)
+                else:
+                    phase_value = divergence_val
+            else:
+                phase_value = divergence_val
+        elif func_type == _PhaseFuncType.SCALED_INVERSE_DISTANCE:
+            # SCALED_INVERSE_DISTANCE: scaling / distance between indices
+            if self._num_regs >= 2:
+                distance_val = 0.0
+                for i in range(self._num_regs - 1):
+                    distance_val += (indices[i] - indices[i + 1]) ** 2
+                if distance_val > 0:
+                    phase_value = 1.0 / sqrt(distance_val)
+                else:
+                    phase_value = divergence_val
+            else:
+                phase_value = divergence_val
+        
+        elif func_type == _PhaseFuncType.SCALED_INVERSE_SHIFTED_DISTANCE:
+            # SCALED_INVERSE_SHIFTED_DISTANCE: scaling / sqrt(sum of (indices[i] - shift[i])^2)
+            if self._num_regs >= 2:
+                distance_val = 0.0
+                for i in range(self._num_regs - 1):
+                    shift_val = self._parameters[2 + i] if i + 2 < self._num_parameters else 0.0
+                    distance_val += (indices[i] - indices[i + 1] - shift_val) ** 2
+                if distance_val > 0:
+                    phase_value = 1.0 / sqrt(distance_val)
+                else:
+                    phase_value = divergence_val
+            else:
+                phase_value = divergence_val
+        elif func_type == _PhaseFuncType.EXPONENTIAL_POLYNOMIAL:
+            # Sum of c_k * (indices[r_k])^{e_k}
+            phase_value = 0.0
+            term_idx = 0
+            for i in range(self._num_regs):
+                num_terms_in_reg = self._num_terms_per_reg[i]
+                for j in range(num_terms_in_reg):
+                    coeff = self._coeffs[term_idx]
+                    exponent = self._exponents[term_idx]
+                    if indices[i] == 0 and exponent < 0:
+                        # Handle negative exponents of zero
+                        phase_value += 0.0  # or raise error?
+                    else:
+                        phase_value += coeff * (indices[i] ** exponent)
+                    term_idx += 1
+        
+        if "SCALED" in func_name:
+            # First parameter is always the scaling factor
+            phase_value *= self._parameters[0]
+        
+        # Apply inverse if "INVERSE" in function name
+        if "INVERSE" in func_name:
+            # Divergence override is always after scaling (if present)
+            div_idx = 1 if "SCALED" in func_name else 0
+            divergence_val = self._parameters[div_idx] if div_idx < self._num_parameters else 0.0
+            if phase_value != 0:
+                phase_value = 1.0 / phase_value
+            else:
+                phase_value = divergence_val
+        # Check for manual override
+        if self._num_overrides:
+            for override_idx in range(self._num_overrides):
+                # Check if current indices match this override
+                match = True
+                for i in range(self._num_regs):
+                    override_ind = self._override_inds[override_idx * self._num_regs + i]
+                    if indices[i] != override_ind:
+                        match = False
+                        break
+                if match:
+                    # Use override phase instead
+                    phase_value = self._override_phases[override_idx]
+                    break
+        # Return as exp(1.0j * phase_value)
+        return _phase_to_qcomp(phase_value)
+
+    cdef int apply_to(self, Qureg c_register) except -1:
+        global _current_phase_func
+        # Set global reference so callback can reach this instance
+        _current_phase_func = self
+        
+        cdef FullStateDiagMatr diag_matr
+        try:
+            # Create diagonal matrix
+            diag_matr = quest.createFullStateDiagMatr(c_register.numQubits)
+            
+            # Populate matrix using v4's function-based API
+            quest.setFullStateDiagMatrFromMultiVarFunc(
+                diag_matr,
+                _compute_phase_callback,           # Function pointer to callback
+                self._num_qubits_per_reg,
+                self._num_regs,
+                self._bit_encoding
+            )
+            
+            # Apply diagonal matrix to qubit register
+            quest.leftapplyFullStateDiagMatr(c_register, diag_matr)
+            quest.destroyFullStateDiagMatr(diag_matr)
+        
+        finally:
+            _current_phase_func = None
+        
+        return 0
 
 
 cdef class QFT(MultiQubitOperator):
@@ -971,7 +1168,7 @@ cdef class QFT(MultiQubitOperator):
         self.TYPE = OP_TYPES.OP_QFT
 
     cdef int apply_to(self, Qureg c_register) except -1:
-        quest.applyQFT(c_register, self._targets, self._num_targets)
+        quest.applyQuantumFourierTransform(c_register, self._targets, self._num_targets)
 
 
 cdef class FullQFT(GlobalOperator):
@@ -980,4 +1177,4 @@ cdef class FullQFT(GlobalOperator):
         self.TYPE = OP_TYPES.OP_FULL_QFT
 
     cdef int apply_to(self, Qureg c_register) except -1:
-        quest.applyFullQFT(c_register)
+        quest.applyFullQuantumFourierTransform(c_register)

@@ -59,7 +59,7 @@ cdef class PauliNoise(SingleQubitOperator):
         self._prob_z = probs[2]
 
     cdef int apply_to(self, Qureg c_register) except -1:
-        quest.mixPauli(c_register, self._target,
+        quest.mixPaulis(c_register, self._target,
                        self._prob_x, self._prob_y, self._prob_z)
 
 
@@ -76,5 +76,4 @@ cdef class MixDensityMatrix(GlobalOperator):
             self._other_register = density_matrix
 
     cdef int apply_to(self, Qureg c_register) except -1:
-        quest.mixDensityMatrix(c_register, self._prob,
-                               self._other_register.c_register)
+        quest.mixQureg(c_register, self._other_register.c_register, self._prob)

@@ -5,7 +5,7 @@ from libc.stdint cimport uintptr_t
 from cpython.ref cimport PyObject, Py_XDECREF
 from cpython.pycapsule cimport PyCapsule_New, PyCapsule_GetPointer
 cimport pyquest.quest_interface as quest
-from pyquest.quest_interface cimport qreal, qcomp, Complex
+from pyquest.quest_interface cimport qreal, qcomp
 from pyquest.quest_interface cimport OP_TYPES, Qureg, QuESTEnv
 from pyquest.operators cimport BaseOperator, GlobalOperator
 from pyquest.gates cimport M
@@ -30,7 +30,7 @@ cdef class Register:
     cdef Qureg c_register
     cdef object _borrowed_from
     cdef object _borrowers
-    cdef Complex _scaling_factor
+    cdef qcomp _scaling_factor
     cpdef init_blank_state(self)
     cpdef apply_circuit(self, Circuit circ)
     cpdef apply_operator(self, BaseOperator op)
