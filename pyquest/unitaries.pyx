@@ -113,10 +113,32 @@ cdef class U(MatrixOperator):
         # not for generic matrices.
         cdef size_t matrix_dim = 1  # Assigning a 1 first prevents integer overflows of the bit shift
         matrix_dim = matrix_dim << self._num_targets
+        cdef size_t k
+        cdef quest.CompMatr1* matr1
+        cdef quest.CompMatr2* matr2
+        cdef qcomp* row_ptr
         if self._num_targets == 1:
             self._matrix = malloc(sizeof(quest.CompMatr1))
+            matr1 = <quest.CompMatr1*>self._matrix
+            matr1.numQubits = self._num_targets
+            matr1.numRows = matrix_dim
+            self._real = <qreal**>malloc(matrix_dim * sizeof(self._real[0]))
+            self._imag = <qreal**>malloc(matrix_dim * sizeof(self._imag[0]))
+            for k in range(matrix_dim):
+                row_ptr = &(matr1.elems[k][0])
+                self._real[k] = <qreal*>row_ptr
+                self._imag[k] = <qreal*>row_ptr + 1
         elif self._num_targets == 2:
             self._matrix = malloc(sizeof(quest.CompMatr2))
+            matr2 = <quest.CompMatr2*>self._matrix
+            matr2.numQubits = self._num_targets
+            matr2.numRows = matrix_dim
+            self._real = <qreal**>malloc(matrix_dim * sizeof(self._real[0]))
+            self._imag = <qreal**>malloc(matrix_dim * sizeof(self._imag[0]))
+            for k in range(matrix_dim):
+                row_ptr = &(matr2.elems[k][0])
+                self._real[k] = <qreal*>row_ptr
+                self._imag[k] = <qreal*>row_ptr + 1
         else:
             self._matrix = malloc(sizeof(quest.CompMatr))
             (<quest.CompMatr*>self._matrix)[0] = quest.createCompMatr(self._num_targets)

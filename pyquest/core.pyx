@@ -161,10 +161,14 @@ cdef class QuESTEnvironment:
 
     @seeds.setter
     def seeds(self, value):
-        cdef unsigned[:] seed_array = np.asarray(value, dtype=np.uint32)
-        if seed_array.size != quest.getNumSeeds():
+        seed_values = np.asarray(value)
+        
+        # Validate values are non-negative 
+        if np.any(seed_values < 0):
             raise ValueError(
-                f"Expected {quest.getNumSeeds()} seeds, got {seed_array.size}")
+                f"Seed values must be non-negative {value}.")
+        
+        cdef unsigned[:] seed_array = np.ascontiguousarray(seed_values, dtype=np.uint32)
         quest.setSeeds(&seed_array[0], seed_array.size)
     
     def reset_seeds_to_default(self):
@@ -348,10 +352,6 @@ cdef class Register:
         
         quest.setQuregToWeightedSum(res_reg.c_register, &(coeffs[0]), &(quregs[0]), 2)
         
-        # Result has scaling factor 1 since it's the sum
-        res_reg._scaling_factor.real = 1.0
-        res_reg._scaling_factor.imag = 0.0
-        
         return res_reg
 
     def __sub__(left, right):
@@ -362,19 +362,14 @@ cdef class Register:
         cdef Register res_reg = Register.zero_like(left_reg)
         cdef qcomp[2] coeffs
         cdef Qureg[2] quregs
-        
+
         # Create result = 1.0 * left_scaling * left - 1.0 * right_scaling * right
         coeffs[0] = left_reg._scaling_factor
-        coeffs[1].real = -right_reg._scaling_factor.real
-        coeffs[1].imag = -right_reg._scaling_factor.imag
+        coeffs[1] = -right_reg._scaling_factor
         quregs[0] = left_reg.c_register
         quregs[1] = right_reg.c_register
         
         quest.setQuregToWeightedSum(res_reg.c_register, &(coeffs[0]), &(quregs[0]), 2)
-        
-        # Result has scaling factor 1 since it's the difference
-        res_reg._scaling_factor.real = 1.0
-        res_reg._scaling_factor.imag = 0.0
         
         return res_reg
 
@@ -471,8 +466,9 @@ cdef class Register:
         cdef int step
         cdef qreal val_imag, val_real
         cdef bool_t from_scalar
-        cdef const qcomp[:] value_arr
+        cdef qcomp[:] value_arr
         cdef qcomp amp
+        cdef qcomp[1] amp_arr
         try:
             value[0]
             from_scalar = False
@@ -493,49 +489,34 @@ cdef class Register:
                 try:
                     value_arr = value
                     for m in range(num_index):
-                        val_real = value_arr[m].real
-                        val_imag = value_arr[m].imag
-                        amp = val_real + val_imag * 1j
-                        quest.setQuregAmps(self.c_register, k, &amp, 1)
+                        quest.setQuregAmps(self.c_register, k, &value_arr[m], 1)
                         k += step
                 except (TypeError, ValueError):
                     for m in range(num_index):
-                        val_real = value[m].real
-                        val_imag = value[m].imag
-                        # Because QuEST needs separate arrays for real
-                        # and imaginary parts, we cannot hand off a
-                        # pointer to a single numpy memoryview. Thus we
-                        # call setQuregAmps for each element separately.
-                        amp = val_real + val_imag * 1j
-                        quest.setQuregAmps(self.c_register, k, &amp, 1)
+                        quest.setQuregAmps(self.c_register, k, &value_arr[m], 1)
                         k += step
             else:
-                val_real = value.real
-                val_imag = value.imag
+                amp = <qcomp>value
+                amp_arr[0] = amp
                 for m in range(num_index):
-                    amp = val_real + val_imag * 1j
-                    quest.setQuregAmps(self.c_register, k, &amp, 1)
+                    quest.setQuregAmps(self.c_register, k, &amp_arr[0], 1)
                     k += step
         else:
             try:
                 num_index = len(index)
                 if not from_scalar:
+                    value_arr = value
                     for m in range(num_index):
-                        val_real = value[m].real
-                        val_imag = value[m].imag
-                        amp = val_real + val_imag * 1j
-                        quest.setQuregAmps(self.c_register, index[m], &amp, 1)
+                        quest.setQuregAmps(self.c_register, index[m], &value_arr[m], 1)
                 else:
-                    val_real = value.real
-                    val_imag = value.imag
+                    amp = <qcomp>value
+                    amp_arr[0] = amp
                     for m in range(num_index):
-                        amp = val_real + val_imag * 1j
-                        quest.setQuregAmps(self.c_register, index[m], &amp, 1)
+                        quest.setQuregAmps(self.c_register, index[m], &amp_arr[0], 1)
             except TypeError:  # Last guess is we got a scalar index.
-                val_real = value.real
-                val_imag = value.imag
-                amp = val_real + val_imag * 1j
-                quest.setQuregAmps(self.c_register, index, &amp, 1)
+                amp = <qcomp>value
+                amp_arr[0] = amp
+                quest.setQuregAmps(self.c_register, index, &amp_arr[0], 1)
 
     @property
     def is_alive(self):
@@ -678,13 +659,8 @@ cdef class Register:
         """
         self._apply_delayed_operations()
         other._apply_delayed_operations()
-        cdef qcomp prod
-        if self.c_register.isDensityMatrix:
-            return quest.calcInnerProduct(
-                self.c_register, other.c_register)
-        else:
-            prod = quest.calcInnerProduct(self.c_register, other.c_register)
-            return prod.real + 1j * prod.imag
+        return quest.calcInnerProduct(self.c_register, other.c_register)
+
 
     cpdef qreal fidelity(self, Register other):
         """Calculate fidelity with the pure state in another register.
@@ -833,21 +809,9 @@ cdef class Register:
         self._apply_scaling()
 
     cdef void _apply_scaling(self):
-        cdef qcomp zero
-        cdef qcomp[3] coeffs
-        cdef Qureg[3] quregs
         if self._scaling_factor.real != 1 or self._scaling_factor.imag != 0:
             self._ensure_no_borrow()
-            zero.real = 0.
-            zero.imag = 0.
-            # Use setQuregToWeightedSum instead of setWeightedQureg
-            coeffs[0] = self._scaling_factor
-            coeffs[1] = zero
-            coeffs[2] = zero
-            quregs[0] = self.c_register
-            quregs[1] = self.c_register
-            quregs[2] = self.c_register
-            quest.setQuregToWeightedSum(self.c_register, &(coeffs[0]), &(quregs[0]), 3)
+            quest.setQuregToWeightedSum(self.c_register, &self._scaling_factor, &self.c_register, 1)
             self._scaling_factor.real = 1
             self._scaling_factor.imag = 0
 

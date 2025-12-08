@@ -80,15 +80,13 @@ cdef class BaseOperator:
         cdef Qureg tmp_reg = quest.createQureg(num_qubits)
         cdef long long k, m
         cdef long long mat_dim = 1LL << num_qubits
-        cdef qcomp amp
         cdef qcomp[:, :] res_mat = np.ndarray(
             (mat_dim, mat_dim), dtype=pyquest.core.np_qcomp)
         for k in range(mat_dim):
             quest.initClassicalState(tmp_reg, k)
             self.apply_to(tmp_reg)
             for m in range(mat_dim):
-                amp = quest.getQuregAmp(tmp_reg, m)
-                res_mat[m, k] = amp
+                res_mat[m, k] = quest.getQuregAmp(tmp_reg, m)
         quest.destroyQureg(tmp_reg)
         return res_mat.base
 
@@ -347,12 +345,34 @@ cdef class MatrixOperator(MultiQubitOperator):
     cdef _create_array_property(self):
         cdef size_t matrix_dim = 1  # Assigning a 1 first prevents integer overflows of the bit shift
         matrix_dim = matrix_dim << self._num_targets
+        cdef size_t k
+        cdef quest.CompMatr1* matr1
+        cdef quest.CompMatr2* matr2
+        cdef qcomp* row_ptr
         # The only cases where core QuEST supports CompMatr1/CompMatr2
         # for generic matrices are non-controlled cases.
         if self._num_targets == 1 and self._num_controls == 0:
             self._matrix = malloc(sizeof(quest.CompMatr1))
+            matr1 = <quest.CompMatr1*>self._matrix
+            matr1.numQubits = self._num_targets
+            matr1.numRows = 1 << self._num_targets
+            self._real = <qreal**>malloc(matrix_dim * sizeof(self._real[0]))
+            self._imag = <qreal**>malloc(matrix_dim * sizeof(self._imag[0]))
+            for k in range(matrix_dim):
+                row_ptr = &(matr1.elems[k][0])
+                self._real[k] = <qreal*>row_ptr
+                self._imag[k] = <qreal*>row_ptr + 1
         elif self._num_targets == 2 and self._num_controls == 0:
             self._matrix = malloc(sizeof(quest.CompMatr2))
+            matr2 = <quest.CompMatr2*>self._matrix
+            matr2.numQubits = self._num_targets
+            matr2.numRows = 1 << self._num_targets
+            self._real = <qreal**>malloc(matrix_dim * sizeof(self._real[0]))
+            self._imag = <qreal**>malloc(matrix_dim * sizeof(self._imag[0]))
+            for k in range(matrix_dim):
+                row_ptr = &(matr2.elems[k][0])
+                self._real[k] = <qreal*>row_ptr
+                self._imag[k] = <qreal*>row_ptr + 1
         else:
             self._matrix = malloc(sizeof(quest.CompMatr))
             (<quest.CompMatr*>self._matrix)[0] = quest.createCompMatr(self._num_targets)
@@ -401,7 +421,8 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t k, m
         for k in range(arr.shape[0]):
             for m in range(arr.shape[1]):
-                self._set_matrix_element(k, m, <qcomp>(arr[k, m].real + 1j * arr[k, m].imag))
+                # Direct cast to qcomp handles complex conversion
+                self._set_matrix_element(k, m, <qcomp>arr[k, m])
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -409,7 +430,7 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t k, m
         for k in range(arr.shape[0]):
             for m in range(arr.shape[1]):
-                self._set_matrix_element(k, m, <qcomp>(arr[k, m] + 0j))
+                self._set_matrix_element(k, m, <qcomp>arr[k, m])
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -417,7 +438,7 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t k, m
         for k in range(arr.shape[0]):
             for m in range(arr.shape[1]):
-                self._set_matrix_element(k, m, <qcomp>(arr[k, m] + 0j))
+                self._set_matrix_element(k, m, <qcomp>arr[k, m])
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -425,7 +446,7 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t k, m
         for k in range(arr.shape[0]):
             for m in range(arr.shape[1]):
-                self._set_matrix_element(k, m, <qcomp>(arr[k, m] + 0j))
+                self._set_matrix_element(k, m, <qcomp>arr[k, m])
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -433,7 +454,7 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t k, m
         for k in range(arr.shape[0]):
             for m in range(arr.shape[1]):
-                self._set_matrix_element(k, m, <qcomp>(arr[k, m].real + 1j * arr[k, m].imag))
+                self._set_matrix_element(k, m, <qcomp>arr[k, m])
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -441,7 +462,7 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t k, m
         for k in range(arr.shape[0]):
             for m in range(arr.shape[1]):
-                self._set_matrix_element(k, m, <qcomp>(arr[k, m].real + 1j * arr[k, m].imag))
+                self._set_matrix_element(k, m, <qcomp>arr[k, m])
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -449,7 +470,7 @@ cdef class MatrixOperator(MultiQubitOperator):
         cdef size_t k, m
         for k in range(arr.shape[0]):
             for m in range(arr.shape[1]):
-                self._set_matrix_element(k, m, <qcomp>(arr[k, m].real + 1j * arr[k, m].imag))
+                self._set_matrix_element(k, m, <qcomp>arr[k, m])
 
 
 cdef class PauliSum(GlobalOperator):
@@ -486,7 +507,7 @@ cdef class DiagonalOperator(GlobalOperator):
                                  "2**num_qubits")
             # Convert Python complex array to qcomp array
             num_elems = diag_elements.size
-            qcomp_el = np.ascontiguousarray(diag_elements, dtype=np.complex128)
+            qcomp_el = np.ascontiguousarray(diag_elements, dtype=pyquest.core.np_qcomp)
             quest.setFullStateDiagMatr(self._diag_op, 0, &qcomp_el[0], num_elems)
 
     def __dealloc__(self):
