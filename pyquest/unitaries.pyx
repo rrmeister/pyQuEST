@@ -84,15 +84,7 @@ cdef class U(MatrixOperator):
         # deallocation must also be performed separately.
         if self._num_targets > 2:
             if self._matrix != NULL:
-                destroyComplexMatrixN((<ComplexMatrixN*>self._matrix)[0])
-        else:
-            free(self._real)
-            free(self._imag)
-        # The parent destructor might also call free on
-        # self._matrix, self._real, and self._imag. Setting them to
-        # NULL avoids freeing the same pointer twice.
-        self._real = NULL
-        self._imag = NULL
+                quest.destroyCompMatr((<quest.CompMatr*>self._matrix)[0])
         free(self._matrix)
         self._matrix = NULL
         free(self._control_pattern)
@@ -117,84 +109,93 @@ cdef class U(MatrixOperator):
 
     cdef _create_array_property(self):
         # We need to override this method, because core QuEST
-        # supports ComplexMatrix* with controls for unitaries, but
+        # supports CompMatr1/CompMatr2 with controls for unitaries, but
         # not for generic matrices.
         cdef size_t matrix_dim = 1  # Assigning a 1 first prevents integer overflows of the bit shift
         matrix_dim = matrix_dim << self._num_targets
         cdef size_t k
+        cdef quest.CompMatr1* matr1
+        cdef quest.CompMatr2* matr2
+        cdef qcomp* row_ptr
         if self._num_targets == 1:
-            self._matrix = malloc(sizeof(ComplexMatrix2))
+            self._matrix = malloc(sizeof(quest.CompMatr1))
+            matr1 = <quest.CompMatr1*>self._matrix
+            matr1.numQubits = self._num_targets
+            matr1.numRows = matrix_dim
             self._real = <qreal**>malloc(matrix_dim * sizeof(self._real[0]))
             self._imag = <qreal**>malloc(matrix_dim * sizeof(self._imag[0]))
             for k in range(matrix_dim):
-                self._real[k] = &(<ComplexMatrix2*>self._matrix).real[k][0]
-                self._imag[k] = &(<ComplexMatrix2*>self._matrix).imag[k][0]
+                row_ptr = &(matr1.elems[k][0])
+                self._real[k] = <qreal*>row_ptr
+                self._imag[k] = <qreal*>row_ptr + 1
         elif self._num_targets == 2:
-            self._matrix = malloc(sizeof(ComplexMatrix4))
+            self._matrix = malloc(sizeof(quest.CompMatr2))
+            matr2 = <quest.CompMatr2*>self._matrix
+            matr2.numQubits = self._num_targets
+            matr2.numRows = matrix_dim
             self._real = <qreal**>malloc(matrix_dim * sizeof(self._real[0]))
             self._imag = <qreal**>malloc(matrix_dim * sizeof(self._imag[0]))
             for k in range(matrix_dim):
-                self._real[k] = &(<ComplexMatrix4*>self._matrix).real[k][0]
-                self._imag[k] = &(<ComplexMatrix4*>self._matrix).imag[k][0]
+                row_ptr = &(matr2.elems[k][0])
+                self._real[k] = <qreal*>row_ptr
+                self._imag[k] = <qreal*>row_ptr + 1
         else:
-            self._matrix = malloc(sizeof(ComplexMatrixN))
-            (<ComplexMatrixN*>self._matrix)[0] = createComplexMatrixN(self._num_targets)
-            self._real = (<ComplexMatrixN*>self._matrix).real
-            self._imag = (<ComplexMatrixN*>self._matrix).imag
+            self._matrix = malloc(sizeof(quest.CompMatr))
+            (<quest.CompMatr*>self._matrix)[0] = quest.createCompMatr(self._num_targets)
 
     cdef int apply_to(self, Qureg c_register) except -1:
         if self._num_controls == 0:
             if self._num_targets == 1:
-                quest.unitary(
+                quest.applyCompMatr1(
                     c_register, self._targets[0],
-                    (<ComplexMatrix2*>self._matrix)[0])
+                    (<quest.CompMatr1*>self._matrix)[0])
             elif self._num_targets == 2:
-                quest.twoQubitUnitary(
+                quest.applyCompMatr2(
                     c_register, self._targets[0], self._targets[1],
-                    (<ComplexMatrix4*>self._matrix)[0])
+                    (<quest.CompMatr2*>self._matrix)[0])
             else:
-                quest.multiQubitUnitary(
+                quest.applyCompMatr(
                     c_register, self._targets, self._num_targets,
-                    (<ComplexMatrixN*>self._matrix)[0])
+                    (<quest.CompMatr*>self._matrix)[0])
         elif self._num_controls == 1:
             if self._num_targets == 1:
                 if self._control_pattern == NULL:
-                    quest.controlledUnitary(
+                    quest.applyControlledCompMatr1(
                         c_register, self._controls[0], self._targets[0],
-                        (<ComplexMatrix2*>self._matrix)[0])
+                        (<quest.CompMatr1*>self._matrix)[0])
                 else:
-                    quest.multiStateControlledUnitary(
+                    quest.applyMultiStateControlledCompMatr1(
                         c_register, self._controls, self._control_pattern,
                         self._num_controls, self._targets[0],
-                        (<ComplexMatrix2*>self._matrix)[0])
+                        (<quest.CompMatr1*>self._matrix)[0])
             elif self._num_targets == 2:
-                quest.controlledTwoQubitUnitary(
+                quest.applyControlledCompMatr2(
                     c_register, self._controls[0], self._targets[0],
-                    self._targets[1], (<ComplexMatrix4*>self._matrix)[0])
+                    self._targets[1], (<quest.CompMatr2*>self._matrix)[0])
             else:
-                quest.controlledMultiQubitUnitary(
+                quest.applyControlledCompMatr(
                     c_register, self._controls[0], self._targets,
-                    self._num_targets, (<ComplexMatrixN*>self._matrix)[0])
+                    self._num_targets, (<quest.CompMatr*>self._matrix)[0])
         else:
             if self._num_targets == 1:
                 if self._control_pattern == NULL:
-                    quest.multiControlledUnitary(
+                    quest.applyMultiControlledCompMatr1(
                         c_register, self._controls, self._num_controls,
-                        self._targets[0], (<ComplexMatrix2*>self._matrix)[0])
+                        self._targets[0], (<quest.CompMatr1*>self._matrix)[0])
                 else:
-                    quest.multiStateControlledUnitary(
+                    quest.applyMultiStateControlledCompMatr1(
                         c_register, self._controls, self._control_pattern,
                         self._num_controls, self._targets[0],
-                        (<ComplexMatrix2*>self._matrix)[0])
+                        (<quest.CompMatr1*>self._matrix)[0])
             elif self._num_targets == 2:
-                quest.multiControlledTwoQubitUnitary(
+                quest.applyMultiControlledCompMatr2(
                     c_register, self._controls, self._num_controls,
                     self._targets[0], self._targets[1],
-                    (<ComplexMatrix4*>self._matrix)[0])
+                    (<quest.CompMatr2*>self._matrix)[0])
             else:
-                quest.multiControlledMultiQubitUnitary(
+                quest.applyMultiControlledCompMatr(
                     c_register, self._controls, self._num_controls, self._targets,
-                    self._num_targets, (<ComplexMatrixN*>self._matrix)[0])
+                    self._num_targets, (<quest.CompMatr*>self._matrix)[0])
 
 
 cdef class CompactU(SingleQubitOperator):
@@ -210,13 +211,31 @@ cdef class CompactU(SingleQubitOperator):
                 "Multi-controlled compact unitary not yet supported.")
 
     cdef int apply_to(self, Qureg c_register) except -1:
+        cdef CompMatr1 matrix
+        cdef qcomp[2][2] elems
+        cdef qcomp beta_conj
+        cdef qcomp alpha_conj
+        cdef qcomp *elem_ptrs[2]
+        # Compute conjugates manually 
+        beta_conj.real = self._beta.real
+        beta_conj.imag = -self._beta.imag
+        alpha_conj.real = self._alpha.real
+        alpha_conj.imag = -self._alpha.imag
+        # Build matrix
+        elems[0][0] = self._alpha
+        elems[0][1] = -beta_conj
+        elems[1][0] = self._beta
+        elems[1][1] = alpha_conj
+        # Set up row pointers for getCompMatr1
+        elem_ptrs[0] = &(elems[0][0])
+        elem_ptrs[1] = &(elems[1][0])
+        matrix = quest.getCompMatr1(<qcomp**>elem_ptrs)
+        
         if self._num_controls == 0:
-            quest.compactUnitary(
-                c_register, self._target, self._alpha, self._beta)
+            quest.applyCompMatr1(c_register, self._target, matrix)
         if self._num_controls == 1:
-            quest.controlledCompactUnitary(
-                c_register, self._controls[0], self._target,
-                self._alpha, self._beta)
+            quest.applyControlledCompMatr1(
+                c_register, self._controls[0], self._target, matrix)
 
 
 cdef class X(MultiQubitOperator):
@@ -227,15 +246,15 @@ cdef class X(MultiQubitOperator):
     cdef int apply_to(self, Qureg c_register) except -1:
         if self._num_controls == 0:
             if self._num_targets == 1:
-                quest.pauliX(c_register, self._targets[0])
+                quest.applyPauliX(c_register, self._targets[0])
             else:
-                quest.multiQubitNot(c_register, self._targets,
+                quest.applyMultiQubitNot(c_register, self._targets,
                                     self._num_targets)
         elif self._num_controls == 1 and self._num_targets == 1:
-            quest.controlledNot(
+            quest.applyControlledPauliX(
                 c_register, self._controls[0], self._targets[0])
         else:
-            quest.multiControlledMultiQubitNot(
+            quest.applyMultiControlledMultiQubitNot(
                 c_register, self._controls, self._num_controls,
                 self._targets, self._num_targets)
 
@@ -254,9 +273,9 @@ cdef class Y(SingleQubitOperator):
 
     cdef int apply_to(self, Qureg c_register) except -1:
         if self._num_controls == 0:
-            quest.pauliY(c_register, self._target)
+            quest.applyPauliY(c_register, self._target)
         else:
-            quest.controlledPauliY(
+            quest.applyControlledPauliY(
                 c_register, self._controls[0], self._target)
 
     @property
@@ -275,20 +294,20 @@ cdef class Z(SingleQubitOperator):
         cdef int *controls
         cdef int m
         if self._num_controls == 0:
-            quest.pauliZ(c_register, self._target)
+            quest.applyPauliZ(c_register, self._target)
         elif self._num_controls == 1:
-            quest.controlledPhaseFlip(
+            quest.applyTwoQubitPhaseFlip(
                 c_register, self._controls[0], self._target)
         else:
             # We need a single array containing all qubits the
             # multi-controlled Pauli-Z is acting on, because of
-            # the signature of multiControlledPhaseFlip(...).
+            # the signature of applyMultiQubitPhaseFlip(...).
             controls = <int*>malloc((self._num_controls + 1)
                                     * sizeof(controls[0]))
             controls[0] = self._target
             for m in range(self._num_controls):
                 controls[m + 1] = self._controls[m]
-            quest.multiControlledPhaseFlip(
+            quest.applyMultiQubitPhaseFlip(
                 c_register, controls, self._num_controls + 1)
             free(controls)
 
@@ -305,7 +324,7 @@ cdef class Swap(MultiQubitOperator):
             raise ValueError("Swap gate must act on exactly two qubits")
 
     cdef int apply_to(self, Qureg c_register) except -1:
-        quest.swapGate(c_register, self._targets[0], self._targets[1])
+        quest.applySwap(c_register, self._targets[0], self._targets[1])
 
     @property
     def inverse(self):
@@ -320,7 +339,7 @@ cdef class SqrtSwap(MultiQubitOperator):
             raise ValueError("Sqrt-swap gate must act on exactly two qubits.")
 
     cdef int apply_to(self, Qureg c_register) except -1:
-        quest.sqrtSwapGate(c_register, self._targets[0], self._targets[1])
+        quest.applySqrtSwap(c_register, self._targets[0], self._targets[1])
 
 
 cdef class H(SingleQubitOperator):
@@ -329,7 +348,7 @@ cdef class H(SingleQubitOperator):
         self.TYPE = OP_TYPES.OP_HADAMARD
 
     cdef int apply_to(self, Qureg c_register) except -1:
-        quest.hadamard(c_register, self._target)
+        quest.applyHadamard(c_register, self._target)
 
     @property
     def inverse(self):
@@ -342,7 +361,7 @@ cdef class S(SingleQubitOperator):
         self.TYPE = OP_TYPES.OP_S
 
     cdef int apply_to(self, Qureg c_register) except -1:
-        quest.sGate(c_register, self._target)
+        quest.applyS(c_register, self._target)
 
 
 cdef class T(SingleQubitOperator):
@@ -351,7 +370,7 @@ cdef class T(SingleQubitOperator):
         self.TYPE = OP_TYPES.OP_T
 
     cdef int apply_to(self, Qureg c_register) except -1:
-        quest.tGate(c_register, self._target)
+        quest.applyT(c_register, self._target)
 
 
 cdef class BaseRotate(SingleQubitOperator):
@@ -404,9 +423,9 @@ cdef class Rx(BaseRotate):
 
     cdef int apply_to(self, Qureg c_register) except -1:
         if self._num_controls == 0:
-            quest.rotateX(c_register, self._target, self._angle)
+            quest.applyRotateX(c_register, self._target, self._angle)
         else:
-            quest.controlledRotateX(
+            quest.applyControlledRotateX(
                 c_register, self._controls[0], self._target, self._angle)
 
 
@@ -420,9 +439,9 @@ cdef class Ry(BaseRotate):
 
     cdef int apply_to(self, Qureg c_register) except -1:
         if self._num_controls == 0:
-            quest.rotateY(c_register, self._target, self._angle)
+            quest.applyRotateY(c_register, self._target, self._angle)
         else:
-            quest.controlledRotateY(
+            quest.applyControlledRotateY(
                 c_register, self._controls[0], self._target, self._angle)
 
 
@@ -436,9 +455,9 @@ cdef class Rz(BaseRotate):
 
     cdef int apply_to(self, Qureg c_register) except -1:
         if self._num_controls == 0:
-            quest.rotateZ(c_register, self._target, self._angle)
+            quest.applyRotateZ(c_register, self._target, self._angle)
         else:
-            quest.controlledRotateZ(
+            quest.applyControlledRotateZ(
                 c_register, self._controls[0], self._target, self._angle)
 
 
@@ -451,9 +470,9 @@ cdef class Phase(BaseRotate):
         cdef size_t m
         cdef int *controls
         if self._num_controls == 0:
-            quest.phaseShift(c_register, self._target, self._angle)
+            quest.applyPhaseShift(c_register, self._target, self._angle)
         elif self._num_controls == 1:
-            quest.controlledPhaseShift(
+            quest.applyTwoQubitPhaseShift(
                 c_register, self._controls[0], self._target, self._angle)
         else:
             # The same as for multi-controlled PauliZ applies here.
@@ -462,7 +481,7 @@ cdef class Phase(BaseRotate):
             controls[0] = self._target
             for m in range(self._num_controls):
                 controls[m + 1] = self._controls[m]
-            quest.multiControlledPhaseShift(
+            quest.applyMultiQubitPhaseShift(
                 c_register, controls, self._num_controls + 1, self._angle)
             free(controls)
 
@@ -480,12 +499,13 @@ cdef class RotateAroundAxis(BaseRotate):
 
     cdef int apply_to(self, Qureg c_register) except -1:
         if self._num_controls == 0:
-            quest.rotateAroundAxis(
-                c_register, self._target, self._angle, self._axis)
+            quest.applyRotateAroundAxis(
+                c_register, self._target, self._angle, 
+                self._axis.x, self._axis.y, self._axis.z)
         else:
-            quest.controlledRotateAroundAxis(
+            quest.applyControlledRotateAroundAxis(
                 c_register, self._controls[0], self._target,
-                self._angle, self._axis)
+                self._angle, self._axis.x, self._axis.y, self._axis.z)
 
 
 cdef class MultiRotatePauli(BaseRotate):

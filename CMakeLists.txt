@@ -19,7 +19,10 @@ set(BUILD_SHARED_LIBS TRUE)
 add_subdirectory(QuEST)
 # To get proper exception/error handling, we must override `invalidQuESTInputError()`
 # in QuEST, which we can do by adding `pyquest/quest_exception.c` to its sources.
-target_include_directories(QuEST PRIVATE ${CMAKE_SOURCE_DIR}/pyquest)
+target_include_directories(QuEST PRIVATE
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/pyquest>
+  $<INSTALL_INTERFACE:include>
+)
 target_sources(QuEST PRIVATE ${CMAKE_SOURCE_DIR}/pyquest/quest_exception.cpp)
 # For Win32 `dll`s every exported symbol must usually be marked explicitly
 # as such. Fortunately, CMake supports automatic export of all symbols (yay).

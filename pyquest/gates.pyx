@@ -97,10 +97,10 @@ cdef class M(MultiQubitOperator):
             self._probabilities[k] = -1
         for k in range(self._num_targets):
             if self._force == NULL or self._force[k] == -1:
-                self._results[k] = quest.measureWithStats(
+                self._results[k] = quest.applyQubitMeasurementAndGetProb(
                     c_register, self._targets[k], &(self._probabilities[k]))
             else:
-                self._probabilities[k] = quest.collapseToOutcome(
+                self._probabilities[k] = quest.applyForcedQubitMeasurement(
                     c_register, self._targets[k], self._force[k])
                 self._results[k] = self._force[k]
 

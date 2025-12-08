@@ -1,12 +1,12 @@
 from libcpp cimport bool
 from libc.stdlib cimport malloc, calloc, free
+from libc.math cimport sqrt, sin, cos
 from cpython.pycapsule cimport PyCapsule_GetPointer
 cimport pyquest.quest_interface as quest
-from pyquest.quest_interface cimport qreal, qcomp, OP_TYPES, Qureg, pauliOpType
-from pyquest.quest_interface cimport phaseFunc, bitEncoding
-from pyquest.quest_interface cimport QuESTEnv, Complex
-from pyquest.quest_interface cimport ComplexMatrix2, ComplexMatrix4, ComplexMatrixN
-from pyquest.quest_interface cimport createComplexMatrixN, destroyComplexMatrixN
+from pyquest.quest_interface cimport qreal, qcomp, qindex, OP_TYPES, Qureg, pauliOpType
+from pyquest.quest_interface cimport QuESTEnv
+from pyquest.quest_interface cimport CompMatr1, CompMatr2, CompMatr
+from pyquest.quest_interface cimport DiagMatr1, DiagMatr2, DiagMatr, FullStateDiagMatr
 cimport numpy as np
 
 
@@ -47,10 +47,12 @@ cdef class MatrixOperator(MultiQubitOperator):
     cdef _copy_csingle_array(self, float complex[:, :] arr)
     cdef _copy_cdouble_array(self, double complex[:, :] arr)
     cdef _copy_clongdouble_array(self, long double complex[:, :] arr)
+    cdef qcomp _get_matrix_element(self, size_t k, size_t n)
+    cdef void _set_matrix_element(self, size_t k, size_t n, qcomp val)
 
 
 cdef class DiagonalOperator(GlobalOperator):
-    cdef quest.DiagonalOp _diag_op
+    cdef FullStateDiagMatr _diag_op
 
 
 cdef class PauliProduct(GlobalOperator):
@@ -74,9 +76,9 @@ cdef class TrotterCircuit(GlobalOperator):
 
 
 cdef class PhaseFunc(GlobalOperator):
-    cdef phaseFunc _phase_func_type
+    cdef int _phase_func_type
     cdef bool _is_poly
-    cdef bitEncoding _bit_encoding
+    cdef int _bit_encoding
     cdef int _num_overrides
     cdef long long int *_override_inds
     cdef qreal *_override_phases
@@ -88,6 +90,8 @@ cdef class PhaseFunc(GlobalOperator):
     cdef int *_num_terms_per_reg
     cdef qreal *_coeffs
     cdef qreal *_exponents
+    cdef qcomp _compute_for_indices_c(self, qindex* indices)
+    cdef int apply_to(self, Qureg c_register) except -1
 
 
 cdef class QFT(MultiQubitOperator):

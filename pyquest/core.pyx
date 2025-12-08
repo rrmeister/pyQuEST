@@ -59,12 +59,18 @@ cdef class QuESTEnvironment:
 
     def __cinit__(self):
         """Create internals and extract environment properties."""
-        self.c_env = quest.createQuESTEnv()
-        logger.info("Created QuEST Environment at " + hex(<uintptr_t>&self.c_env))
+        try:
+            quest.initQuESTEnv()  # v4 API: no return value, manages environment internally
+        except QuESTError:
+            # Environment already initialized - in v4 there is 
+            # only one global environment per process)
+            pass
+        self.c_env = quest.getQuESTEnv()  # v4 API: get local copy
+        logger.info("Initialized QuEST Environment")
         self._env_capsule = PyCapsule_New(<void*>&self.c_env, NULL, NULL)
         self._logged_registers = WeakSet()
         cdef char[200] env_str
-        quest.getEnvironmentString(self.c_env, env_str)
+        quest.getEnvironmentString(env_str)
         py_string = env_str.decode('UTF-8')
         prop_dict = dict([prop.split("=") for prop in py_string.split()])
         self._cuda = prop_dict['CUDA'] != '0'
@@ -143,33 +149,30 @@ cdef class QuESTEnvironment:
         processes. This is useful for printing messages and accessing
         the file system.
         """
-        return self.c_env.rank
+        cdef int r = self.c_env.rank
+        return r
 
     @property
     def seeds(self):
-        seed_list = []
-        cdef int k
-        for k in range(self.c_env.numSeeds):
-            seed_list.append(self.c_env.seeds[k])
-        return seed_list
+        cdef int num_seeds = quest.getNumSeeds()
+        cdef unsigned[:] seed_array = np.ndarray(num_seeds, dtype=np.uint32)
+        quest.getSeeds(&seed_array[0])
+        return seed_array.base.tolist()
 
     @seeds.setter
-    def seeds(self, val):
-        cdef int num_seeds
-        try:
-            num_seeds = len(val)
-        except TypeError:
-            val = [val]
-            num_seeds = 1
-        cdef unsigned long *seeds = <unsigned long*>malloc(sizeof(seeds[0]) * num_seeds)
-        cdef int k
-        for k in range(num_seeds):
-            seeds[k] = val[k]
-            if seeds[k] != val[k]:
-                free(seeds)
-                raise ValueError("Seeds for QuEST may only be positive integers.")
-        quest.seedQuEST(&(self.c_env), seeds, num_seeds)
-        free(seeds)
+    def seeds(self, value):
+        seed_values = np.asarray(value)
+        
+        # Validate values are non-negative 
+        if np.any(seed_values < 0):
+            raise ValueError(
+                f"Seed values must be non-negative {value}.")
+        
+        cdef unsigned[:] seed_array = np.ascontiguousarray(seed_values, dtype=np.uint32)
+        quest.setSeeds(&seed_array[0], seed_array.size)
+    
+    def reset_seeds_to_default(self):
+        quest.setSeedsToDefault()
 
     def close_env(self):
         """Close the QuEST environment.
@@ -188,8 +191,8 @@ cdef class QuESTEnvironment:
         cdef Register reg
         for reg in self._logged_registers:
             reg._destroy()
-        logger.info("Closing QuEST Environment at " + hex(<uintptr_t>&self.c_env))
-        quest.destroyQuESTEnv(self.c_env)
+        logger.info("Finalizing QuEST Environment")
+        quest.finalizeQuESTEnv()  # v4 API: no parameter needed
 
 
 cdef class Register:
@@ -224,19 +227,16 @@ cdef class Register:
         self._borrowed_from = None
         self._borrowers = WeakSet()
         if num_qubits == 0:
-            self.c_register.numAmpsTotal = 0
+            self.c_register.numAmps = 0
             return
         if copy_reg is None:
             if density_matrix:
-                self.c_register = quest.createDensityQureg(
-                    num_qubits, (<QuESTEnvironment>pyquest.env).c_env)
+                self.c_register = quest.createDensityQureg(num_qubits)
             else:
-                self.c_register = quest.createQureg(
-                    num_qubits, (<QuESTEnvironment>pyquest.env).c_env)
+                self.c_register = quest.createQureg(num_qubits)
         else:
             copy_reg._apply_delayed_operations()
-            self.c_register = quest.createCloneQureg(
-                copy_reg.c_register, (<QuESTEnvironment>pyquest.env).c_env)
+            self.c_register = quest.createCloneQureg(copy_reg.c_register)
         logger.info("Created quantum register at " + hex(id(self)))
         (<QuESTEnvironment>pyquest.env).log_register(self)
 
@@ -338,29 +338,39 @@ cdef class Register:
     def __add__(left, right):
         if not (isinstance(left, Register) and isinstance(right, Register)):
             return NotImplemented
-        cdef Register res_reg = Register.zero_like(left)
-        cdef Complex zero
-        zero.real = 0
-        zero.imag = 0
-        quest.setWeightedQureg(
-            (<Register>left)._scaling_factor, (<Register>left).c_register,
-            (<Register>right)._scaling_factor, (<Register>right).c_register,
-            zero, res_reg.c_register)
+        cdef Register left_reg = <Register>left
+        cdef Register right_reg = <Register>right
+        cdef Register res_reg = Register.zero_like(left_reg)
+        cdef qcomp[2] coeffs
+        cdef Qureg[2] quregs
+        
+        # Create result = 1.0 * left_scaling * left + 1.0 * right_scaling * right
+        coeffs[0] = left_reg._scaling_factor
+        coeffs[1] = right_reg._scaling_factor
+        quregs[0] = left_reg.c_register
+        quregs[1] = right_reg.c_register
+        
+        quest.setQuregToWeightedSum(res_reg.c_register, &(coeffs[0]), &(quregs[0]), 2)
+        
         return res_reg
 
     def __sub__(left, right):
         if not (isinstance(left, Register) and isinstance(right, Register)):
             return NotImplemented
-        cdef Register res_reg = Register.zero_like(left)
-        cdef Complex zero, right_fac
-        zero.real = 0
-        zero.imag = 0
-        right_fac.real = -(<Register>right)._scaling_factor.real
-        right_fac.imag = -(<Register>right)._scaling_factor.imag
-        quest.setWeightedQureg(
-            (<Register>left)._scaling_factor, (<Register>left).c_register,
-            right_fac, (<Register>right).c_register,
-            zero, res_reg.c_register)
+        cdef Register left_reg = <Register>left
+        cdef Register right_reg = <Register>right
+        cdef Register res_reg = Register.zero_like(left_reg)
+        cdef qcomp[2] coeffs
+        cdef Qureg[2] quregs
+
+        # Create result = 1.0 * left_scaling * left - 1.0 * right_scaling * right
+        coeffs[0] = left_reg._scaling_factor
+        coeffs[1] = -right_reg._scaling_factor
+        quregs[0] = left_reg.c_register
+        quregs[1] = right_reg.c_register
+        
+        quest.setQuregToWeightedSum(res_reg.c_register, &(coeffs[0]), &(quregs[0]), 2)
+        
         return res_reg
 
     def __getitem__(self, index):
@@ -456,7 +466,9 @@ cdef class Register:
         cdef int step
         cdef qreal val_imag, val_real
         cdef bool_t from_scalar
-        cdef const qcomp[:] value_arr
+        cdef qcomp[:] value_arr
+        cdef qcomp amp
+        cdef qcomp[1] amp_arr
         try:
             value[0]
             from_scalar = False
@@ -468,7 +480,7 @@ cdef class Register:
                 "Manually setting elements is only supported "
                 "for state vectors.")
         if isinstance(index, slice):
-            start, stop, step = index.indices(self.c_register.numAmpsTotal)
+            start, stop, step = index.indices(self.c_register.numAmps)
             num_index = len(range(start, stop, step))
             k = start
             if not from_scalar:
@@ -477,53 +489,44 @@ cdef class Register:
                 try:
                     value_arr = value
                     for m in range(num_index):
-                        val_real = value_arr[m].real
-                        val_imag = value_arr[m].imag
-                        quest.setAmps(self.c_register, k, &val_real, &val_imag, 1)
+                        quest.setQuregAmps(self.c_register, k, &value_arr[m], 1)
                         k += step
                 except (TypeError, ValueError):
                     for m in range(num_index):
-                        val_real = value[m].real
-                        val_imag = value[m].imag
-                        # Because QuEST needs separate arrays for real
-                        # and imaginary parts, we cannot hand off a
-                        # pointer to a single numpy memoryview. Thus we
-                        # call setAmps for each element separately.
-                        quest.setAmps(self.c_register, k, &val_real, &val_imag, 1)
+                        quest.setQuregAmps(self.c_register, k, &value_arr[m], 1)
                         k += step
             else:
-                val_real = value.real
-                val_imag = value.imag
+                amp = <qcomp>value
+                amp_arr[0] = amp
                 for m in range(num_index):
-                    quest.setAmps(self.c_register, k, &val_real, &val_imag, 1)
+                    quest.setQuregAmps(self.c_register, k, &amp_arr[0], 1)
                     k += step
         else:
             try:
                 num_index = len(index)
                 if not from_scalar:
+                    value_arr = value
                     for m in range(num_index):
-                        val_real = value[m].real
-                        val_imag = value[m].imag
-                        quest.setAmps(self.c_register, index[m], &val_real, &val_imag, 1)
+                        quest.setQuregAmps(self.c_register, index[m], &value_arr[m], 1)
                 else:
-                    val_real = value.real
-                    val_imag = value.imag
+                    amp = <qcomp>value
+                    amp_arr[0] = amp
                     for m in range(num_index):
-                        quest.setAmps(self.c_register, index[m], &val_real, &val_imag, 1)
+                        quest.setQuregAmps(self.c_register, index[m], &amp_arr[0], 1)
             except TypeError:  # Last guess is we got a scalar index.
-                val_real = value.real
-                val_imag = value.imag
-                quest.setAmps(self.c_register, index, &val_real, &val_imag, 1)
+                amp = <qcomp>value
+                amp_arr[0] = amp
+                quest.setQuregAmps(self.c_register, index, &amp_arr[0], 1)
 
     @property
     def is_alive(self):
         """Return whether the underlying QuEST structure is valid."""
-        return self.c_register.numAmpsTotal > 0
+        return self.c_register.numAmps > 0  # v4 API: direct field access
 
     @property
     def num_qubits(self):
         """Return the number of qubits in the register."""
-        return quest.getNumQubits(self.c_register)
+        return self.c_register.numQubits  # v4 API: direct field access
 
     @property
     def num_amps(self):
@@ -532,7 +535,7 @@ cdef class Register:
         This is given by 2 ** num_qubits for pure states, and
         2 ** (2 * num_qubits) for density matrices.
         """
-        return quest.getNumAmps(self.c_register)
+        return self.c_register.numAmps  # v4 API: direct field access
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -583,7 +586,7 @@ cdef class Register:
         cdef int num_qubits = arr_qubits.size
         cdef qreal[:] outcome_probs = np.ndarray(1 << num_qubits,
                                                  dtype=np_qreal)
-        quest.calcProbOfAllOutcomes(&outcome_probs[0], self.c_register,
+        quest.calcProbsOfAllMultiQubitOutcomes(&outcome_probs[0], self.c_register,
                                     &arr_qubits[0], num_qubits)
         return outcome_probs.base
 
@@ -622,7 +625,7 @@ cdef class Register:
         of the same type (state vector or density matrix).
         """
         self._apply_delayed_operations()
-        quest.cloneQureg(other.c_register, self.c_register)
+        quest.setQuregToClone(other.c_register, self.c_register)
 
     cpdef void copy_from(self, Register other):
         """Copy the state from another ``Register``.
@@ -631,7 +634,7 @@ cdef class Register:
         of the same type (state vector or density matrix).
         """
         self._apply_delayed_operations()
-        quest.cloneQureg(self.c_register, other.c_register)
+        quest.setQuregToClone(self.c_register, other.c_register)
 
     def destroy_reg(self):
         """Free the resources of the underlying data structure.
@@ -656,13 +659,8 @@ cdef class Register:
         """
         self._apply_delayed_operations()
         other._apply_delayed_operations()
-        cdef Complex prod
-        if self.c_register.isDensityMatrix:
-            return quest.calcDensityInnerProduct(
-                self.c_register, other.c_register)
-        else:
-            prod = quest.calcInnerProduct(self.c_register, other.c_register)
-            return prod.real + 1j * prod.imag
+        return quest.calcInnerProduct(self.c_register, other.c_register)
+
 
     cpdef qreal fidelity(self, Register other):
         """Calculate fidelity with the pure state in another register.
@@ -716,7 +714,7 @@ cdef class Register:
         created register are identical to ``other``, but the returned
         register is initialised to the zero product state.
         """
-        cdef Register new_reg = Register(other.c_register.numQubitsRepresented,
+        cdef Register new_reg = Register(other.c_register.numQubits,
                                          other.c_register.isDensityMatrix)
         return new_reg
 
@@ -730,7 +728,7 @@ cdef class Register:
         logger.info("Destroying quantum register at " + hex(id(self)))
         # Only call destroyQureg if this is a valid Qureg;
         # otherwise destroyQureg will segfault.
-        if self.c_register.numAmpsTotal == 0:
+        if self.c_register.numAmps == 0:
             logger.debug("Underlying Qureg already destroyed")
             return
         # A borrowed c_register must not be destroyed.
@@ -747,9 +745,8 @@ cdef class Register:
             logger.debug("Transferred ownership of Qureg to Register "
                          "at " + hex(id(new_owner)))
             return
-        quest.destroyQureg(self.c_register,
-                           (<QuESTEnvironment>pyquest.env).c_env)
-        self.c_register.numAmpsTotal = 0
+        quest.destroyQureg(self.c_register)
+        self.c_register.numAmps = 0
 
     @staticmethod
     cdef Register _create_with_borrowed_reference(Register original_reg):
@@ -778,8 +775,7 @@ cdef class Register:
         if borrowee is None:
             if self._borrowed_from is not None:
                 self.c_register = quest.createCloneQureg(
-                    (<Register>self._borrowed_from()).c_register,
-                    (<QuESTEnvironment>pyquest.env).c_env)
+                    (<Register>self._borrowed_from()).c_register)
                 (<Register>self._borrowed_from())._unregister_borrower(self)
                 self._borrowed_from = None
             return
@@ -813,14 +809,9 @@ cdef class Register:
         self._apply_scaling()
 
     cdef void _apply_scaling(self):
-        cdef Complex zero
         if self._scaling_factor.real != 1 or self._scaling_factor.imag != 0:
             self._ensure_no_borrow()
-            zero.real = 0.
-            zero.imag = 0.
-            quest.setWeightedQureg(
-                zero, self.c_register, zero, self.c_register,
-                self._scaling_factor, self.c_register)
+            quest.setQuregToWeightedSum(self.c_register, &self._scaling_factor, &self.c_register, 1)
             self._scaling_factor.real = 1
             self._scaling_factor.imag = 0
 
@@ -833,19 +824,19 @@ cdef class Register:
         at position ``row`` is returned. Density matrices use both
         indices as the index of the amplitude to fetch.
         """
-        cdef Complex amp
+        cdef qcomp amp
         if self.c_register.isDensityMatrix:
-            amp = quest.getDensityAmp(self.c_register, row, col)
+            amp = quest.getDensityQuregAmp(self.c_register, row, col)
         else:
-            amp = quest.getAmp(self.c_register, row)
-        return amp.real + 1j * amp.imag
+            amp = quest.getQuregAmp(self.c_register, row)  # v4 API: renamed function
+        return amp
 
     # These specialised functions speed up the state retrieval by having
     # C-loops over the sliced dimensions.
     @cython.boundscheck(False)
     @cython.wraparound(False)
     cdef qcomp[:, :] _get_state_from_slices(self, slice row_slice, slice col_slice):
-        cdef size_t mat_dim = 1LL << self.c_register.numQubitsRepresented
+        cdef size_t mat_dim = 1LL << self.c_register.numQubits
         cdef size_t c_start, c_stop, num_cols, cur_col, r_start, r_stop, num_rows, cur_row, k, m
         cdef int c_step, r_step
         c_start, c_stop, c_step = col_slice.indices(mat_dim)
@@ -865,7 +856,7 @@ cdef class Register:
     @cython.boundscheck(False)
     @cython.wraparound(False)
     cdef qcomp[:, :] _get_state_from_col_slice(self, row_index, slice col_slice):
-        cdef size_t mat_dim = 1LL << self.c_register.numQubitsRepresented
+        cdef size_t mat_dim = 1LL << self.c_register.numQubits
         cdef size_t start, stop, num_cols, cur_row, cur_col, k, m
         cdef int step
         start, stop, step = col_slice.indices(mat_dim)
@@ -882,7 +873,7 @@ cdef class Register:
     @cython.boundscheck(False)
     @cython.wraparound(False)
     cdef qcomp[:, :] _get_state_from_row_slice(self, slice row_slice, col_index):
-        cdef size_t mat_dim = 1LL << self.c_register.numQubitsRepresented
+        cdef size_t mat_dim = 1LL << self.c_register.numQubits
         cdef size_t start, stop, num_rows, cur_row, cur_col, k, m
         cdef int step
         start, stop, step = row_slice.indices(mat_dim)

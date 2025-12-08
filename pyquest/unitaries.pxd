@@ -1,8 +1,7 @@
 from libc.stdlib cimport malloc, free
 cimport pyquest.quest_interface as quest
-from pyquest.quest_interface cimport Complex, Vector, qreal, OP_TYPES, Qureg
-from pyquest.quest_interface cimport ComplexMatrix2, ComplexMatrix4, ComplexMatrixN
-from pyquest.quest_interface cimport createComplexMatrixN, destroyComplexMatrixN
+from pyquest.quest_interface cimport qcomp, Vector, qreal, OP_TYPES, Qureg
+from pyquest.quest_interface cimport CompMatr1, CompMatr2, CompMatr
 from pyquest.operators cimport SingleQubitOperator, MultiQubitOperator, MatrixOperator
 
 
@@ -11,8 +10,8 @@ cdef class U(MatrixOperator):
 
 
 cdef class CompactU(SingleQubitOperator):
-    cdef Complex _alpha
-    cdef Complex _beta
+    cdef qcomp _alpha
+    cdef qcomp _beta
 
 
 cdef class X(MultiQubitOperator):
@@ -75,4 +74,4 @@ cdef class MultiRotatePauli(BaseRotate):
     pass
 
 cdef class ParamSwap(BaseRotate):
-    cdef ComplexMatrix4 _u
+    cdef CompMatr2 _u
